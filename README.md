@@ -44,7 +44,7 @@ If the adapter is not exposed as `/dev/ttyUSB0`, set the port by environment var
 SERIAL_PORT=/dev/ttyAMA0 npm start
 ```
 
-The app writes raw DCC-style locomotive packets to the configured serial port. In practice, this is intended for a serial interface that the Intellibox command station can accept; if your setup uses a different protocol layer, adapt the packet format in `serialService.js`.
+The app is configured for a LocoNet-style serial interface and uses a 57600 baud serial connection. This matches the setup where the USB adapter is connected to the Intellibox serial side rather than sending raw DCC packets directly.
 
 ## App behavior
 
