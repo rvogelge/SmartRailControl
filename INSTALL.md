@@ -22,16 +22,17 @@ node -v
 npm -v
 ```
 
-## 2. Download or copy the project
+## 2. Download the project from GitHub
 
-Place the project folder on the Raspberry Pi. Example:
+Clone the repository directly to the Raspberry Pi:
 
 ```bash
-mkdir -p ~/bird_rail
-cd ~/bird_rail
+cd ~
+git clone https://github.com/rvogelge/bird_rail.git
+cd bird_rail
 ```
 
-If the project files are already in the folder, continue to the next step.
+If you already have the project files in a folder, you can copy them instead. In that case, make sure you are inside the project directory before continuing.
 
 ## 3. Install dependencies
 
