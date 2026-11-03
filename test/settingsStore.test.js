@@ -58,7 +58,7 @@ test('stores a track layout and validates elements', () => {
   });
   const reloaded = new SettingsStore(file).getLayout();
   assert.equal(reloaded.cols, 10);
-  assert.deepEqual(reloaded.tiles[1], { id: 't2', type: 'turnout-left', x: 9, y: 5, rotation: 0, state: 'straight' });
+  assert.deepEqual(reloaded.tiles[1], { id: 't2', type: 'turnout-left', x: 9, y: 5, rotation: 0, state: 'straight', addresses: [null] });
 
   assert.throws(() => store.setLayout({ cols: 10, rows: 6, tiles: [{ type: 'bridge', x: 0, y: 0 }] }));
   assert.throws(() => store.setLayout({ cols: 10, rows: 6, tiles: [{ type: 'curve', x: 10, y: 0 }] }));
@@ -94,4 +94,42 @@ test('accepts 45° track elements', () => {
     tiles: types.map((type, i) => ({ id: `n${i}`, type, x: i, y: 0, rotation: 90 }))
   });
   assert.deepEqual(tiles.map((t) => t.type), types);
+});
+
+test('stores decoder addresses per element and validates them', () => {
+  const store = new SettingsStore(tmpFile());
+  const { tiles } = store.setLayout({
+    cols: 6,
+    rows: 6,
+    tiles: [
+      { id: 'a', type: 'turnout-right', x: 0, y: 0, addresses: [12] },
+      { id: 'b', type: 'double-slip', x: 1, y: 0, addresses: ['7', null] },
+      { id: 'c', type: 'contact', x: 2, y: 0, addresses: [101, 999] },
+      { id: 'd', type: 'straight', x: 3, y: 0, addresses: [5] }
+    ]
+  });
+  assert.deepEqual(tiles.map((t) => t.addresses), [[12], [7, null], [101], undefined]);
+  assert.throws(() => store.setLayout({ cols: 6, rows: 6, tiles: [{ type: 'signal', x: 0, y: 0, addresses: [0] }] }));
+  assert.throws(() => store.setLayout({ cols: 6, rows: 6, tiles: [{ type: 'signal', x: 0, y: 0, addresses: [2049] }] }));
+});
+
+test('R2 curve occupies three squares of its 2×2 block and leaves the inner corner free', () => {
+  const store = new SettingsStore(tmpFile());
+  // R2 at (0,0) rotation 0 uses (0,0), (1,0), (1,1); the R1 curve fits into (0,1).
+  store.setLayout({
+    cols: 6,
+    rows: 6,
+    tiles: [
+      { id: 'r2', type: 'curve-r2', x: 0, y: 0 },
+      { id: 'r1', type: 'curve', x: 0, y: 1 }
+    ]
+  });
+  assert.throws(() => store.setLayout({
+    cols: 6, rows: 6, tiles: [{ type: 'curve-r2', x: 0, y: 0 }, { type: 'straight', x: 1, y: 1 }]
+  }), /More than one element/);
+  // Rotated 90°: uses (1,0), (1,1), (0,1) of the block — (0,0) is free.
+  store.setLayout({
+    cols: 6, rows: 6, tiles: [{ type: 'curve-r2', x: 0, y: 0, rotation: 90 }, { type: 'straight', x: 0, y: 0 }]
+  });
+  assert.throws(() => store.setLayout({ cols: 6, rows: 6, tiles: [{ type: 'curve-r2', x: 5, y: 0 }] }), /outside/);
 });

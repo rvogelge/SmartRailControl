@@ -593,19 +593,24 @@ button:disabled {
   margin: 0;
   padding: 0;
   display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
 
 .palette-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 6px;
   width: 100%;
-  padding: 8px 10px;
+  height: 100%;
+  padding: 8px 4px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
-  text-align: left;
+  text-align: center;
+  font-size: 0.76rem;
   font-weight: 600;
+  line-height: 1.25;
 }
 
 .palette-item:hover {
@@ -619,8 +624,8 @@ button:disabled {
 
 .palette-preview {
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
 }
 
 .preview-bg {
@@ -813,6 +818,87 @@ kbd {
   fill: var(--ok);
 }
 
+/* Contact track, uncoupler, address badges */
+.track .contact-mark {
+  fill: #b48cff;
+  stroke: #0b1117;
+  stroke-width: 4;
+}
+
+.track .uncoupler-mark {
+  fill: none;
+  stroke: var(--warn);
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+
+.track.active .uncoupler-mark {
+  stroke: #fff;
+}
+
+.track.active .rail {
+  stroke: var(--warn);
+}
+
+.addr-badge rect {
+  fill: rgba(11, 17, 23, 0.85);
+  stroke: var(--border);
+  stroke-width: 2;
+}
+
+.addr-badge text {
+  fill: var(--text);
+  font: 700 17px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.addr-badge.missing rect {
+  stroke: var(--warn);
+}
+
+.addr-badge.missing text {
+  fill: var(--warn);
+}
+
+/* Properties bar (edit mode, selected element) */
+.props-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.props-bar[hidden] {
+  display: none;
+}
+
+.props-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.props-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.props-field input {
+  width: 92px;
+  padding: 6px 8px;
+}
+
+.props-note {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 /* Edit / run mode */
 .mode-switch {
   grid-template-columns: auto auto;
@@ -906,8 +992,8 @@ body[data-mode='run'] .layout-editor {
   }
 
   .palette-item {
+    width: 92px;
     background: var(--surface-2);
-    white-space: nowrap;
   }
 
   .hint {

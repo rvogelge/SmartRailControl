@@ -6,32 +6,31 @@ const DEFAULT_FILE = path.join(__dirname, 'data', 'settings.json');
 const MAX_SPEED = 126;
 const MAX_CONTROLLERS = 50;
 
-const TRACK_TYPES = [
-  'straight',
-  'diagonal',
-  'curve-45-left',
-  'curve-45-right',
-  'curve',
-  'turnout-left',
-  'turnout-right',
-  'double-slip',
-  'crossing-45',
-  'crossing',
-  'buffer',
-  'signal'
-];
-// Switchable elements and their states; the first entry is the default.
-const ELEMENT_STATES = {
-  'turnout-left': ['straight', 'diverging'],
-  'turnout-right': ['straight', 'diverging'],
-  'double-slip': ['straight', 'turn'],
-  signal: ['stop', 'go']
-};
-const ROTATIONS = [0, 90, 180, 270];
+const TrackCatalog = require('./public/trackCatalog');
+
+const TRACK_TYPES = TrackCatalog.TYPE_NAMES;
+const ELEMENT_STATES = Object.fromEntries(
+  TRACK_TYPES.filter((type) => TrackCatalog.statesOf(type)).map((type) => [type, TrackCatalog.statesOf(type)])
+);
+const ROTATIONS = TrackCatalog.ROTATIONS;
 const GRID_LIMITS = { minCols: 4, maxCols: 60, minRows: 4, maxRows: 40 };
 const DEFAULT_LAYOUT = { cols: 20, rows: 12, tiles: [] };
 
 const toInt = (value) => (Number.isInteger(Number(value)) ? Number(value) : NaN);
+
+const sanitizeAddresses = (type, input) => {
+  const slots = TrackCatalog.addressSlots(type);
+  const values = Array.isArray(input) ? input : [];
+  return slots.map((_label, i) => {
+    const value = values[i];
+    if (value === null || value === undefined || value === '') return null;
+    const address = toInt(value);
+    if (!(address >= 1 && address <= TrackCatalog.MAX_ADDRESS)) {
+      throw new Error(`Decoder address must be between 1 and ${TrackCatalog.MAX_ADDRESS}.`);
+    }
+    return address;
+  });
+};
 
 const sanitizeLayout = (input) => {
   if (!input || typeof input !== 'object') {
@@ -57,30 +56,34 @@ const sanitizeLayout = (input) => {
     if (!TRACK_TYPES.includes(tile && tile.type)) {
       throw new Error(`Unknown track element: ${tile && tile.type}`);
     }
-    if (!(x >= 0 && x < cols && y >= 0 && y < rows)) {
-      throw new Error('Track element is outside the layout grid.');
+    if (!(Number.isInteger(x) && Number.isInteger(y))) {
+      throw new Error('Track element has an invalid position.');
     }
-    const cell = `${x},${y}`;
-    if (occupied.has(cell)) {
-      throw new Error(`More than one element at cell ${cell}.`);
-    }
-    occupied.add(cell);
+
+    const rotation = ROTATIONS.includes(toInt(tile.rotation)) ? toInt(tile.rotation) : 0;
+
+    TrackCatalog.cellsOf({ type: tile.type, x, y, rotation }).forEach(([cx, cy]) => {
+      if (!(cx >= 0 && cx < cols && cy >= 0 && cy < rows)) {
+        throw new Error('Track element is outside the layout grid.');
+      }
+      const cell = `${cx},${cy}`;
+      if (occupied.has(cell)) {
+        throw new Error(`More than one element at cell ${cell}.`);
+      }
+      occupied.add(cell);
+    });
 
     let id = typeof tile.id === 'string' && /^[\w-]{1,64}$/.test(tile.id) ? tile.id : crypto.randomUUID();
     if (ids.has(id)) id = crypto.randomUUID();
     ids.add(id);
 
-    const rotation = toInt(tile.rotation);
-    const sanitized = {
-      id,
-      type: tile.type,
-      x,
-      y,
-      rotation: ROTATIONS.includes(rotation) ? rotation : 0
-    };
+    const sanitized = { id, type: tile.type, x, y, rotation };
     const states = ELEMENT_STATES[tile.type];
     if (states) {
       sanitized.state = states.includes(tile.state) ? tile.state : states[0];
+    }
+    if (TrackCatalog.addressSlots(tile.type).length > 0) {
+      sanitized.addresses = sanitizeAddresses(tile.type, tile.addresses);
     }
     return sanitized;
   });

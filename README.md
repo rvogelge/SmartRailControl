@@ -74,9 +74,13 @@ Open the **Layout** tab. Every element fills exactly one grid square and snaps t
 
 The page has two modes, switched with **Edit / Run** in the toolbar (or the `E` key). `layout.html#edit` and `layout.html#run` open a mode directly.
 
-**Run mode** shows only the layout. Click a turnout, crossover switch or signal to change it: turnouts switch between straight and diverging, the crossover switch between straight and turning routes, and signals between red and green. The active route is drawn bright, the other route dimmed. States are saved with the layout.
+**Run mode** shows only the layout. Click a turnout, crossover switch, signal or uncoupler to operate it: turnouts switch between straight and diverging, the crossover switch between straight and turning routes, and signals between red and green. The active route is drawn bright, the other route dimmed. States are saved with the layout.
 
-**Edit mode** — elements: Straight, Diagonal, Curve 45° left/right, Curve 90°, Turnout left/right, Crossover switch (double slip), Crossing 45°, Crossing 90°, Buffer stop, Signal.
+**Edit mode** — elements: Straight, Diagonal, Curve 45° left/right, Curve 90° R1, Curve 90° R2 (parallel), Turnout left/right, Three-way turnout, Crossover switch (double slip), Crossing 45°, Crossing 90°, Buffer stop, Signal, Contact track, Uncoupler.
+
+**Parallel curves:** *Curve 90° R2* has radius 150 and takes a 2×2 block, of which it uses three squares. Put a *Curve 90° R1* into the free inner square (same rotation) and the two curves run exactly one track apart — use this for parallel loops.
+
+**Decoder addresses:** every element with an action — turnouts, three-way turnout, crossover switch, signals, uncouplers and contact tracks — has decoder address fields (1–2048). Select the element in edit mode; the fields appear above the grid (double-click an element to jump there). Three-way turnouts and crossover switches have two drives, so they get two addresses. The address is shown as a badge on the element; `?` marks a missing address. For contact tracks the number is the feedback contact.
 
 Track geometry: elements connect at the edge midpoints of a square and, for 45° track, at its corners. Turnouts branch off at 45° into a corner, the crossover switch crosses a straight track with a 45° diagonal. Use *Diagonal* and the 45° curves to continue a branch: two 45° curves (via a corner) make a 90° turn.
 
@@ -95,5 +99,6 @@ The layout is saved automatically in `data/settings.json`.
 - `settingsStore.js` – stores controllers and interface settings in `data/settings.json`
 - `public/index.html` – locomotive control page
 - `public/layout.html`, `public/layout.js` – track layout editor
+- `public/trackCatalog.js` – element types, states, addresses and footprints (shared by browser and server)
 - `public/app.js` – browser-side control logic
 - `public/styles.css` – styling

@@ -33,7 +33,7 @@
         </div>
         <ul id="palette" class="palette" role="listbox" aria-label="Select element"></ul>
         <p class="hint">
-          Pick an element, then click a square to place it.<br />
+          Pick an element, then click a square to place it. Select an element to set its decoder address (double-click jumps to the field).<br />
           <kbd>R</kbd> rotate · <kbd>Del</kbd> remove · <kbd>Esc</kbd> select tool · <kbd>E</kbd> edit/run
         </p>
       </aside>
@@ -61,6 +61,11 @@
           </div>
         </div>
 
+        <div id="propsBar" class="props-bar edit-only" hidden>
+          <strong id="propsTitle"></strong>
+          <div id="propsFields" class="props-fields"></div>
+        </div>
+
         <div class="board-scroll">
           <svg id="board" class="board" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Track layout grid">
             <defs>
@@ -78,6 +83,7 @@
       </section>
     </main>
 
+    <script src="trackCatalog.js"></script>
     <script src="layout.js"></script>
   </body>
 </html>
