@@ -6,6 +6,63 @@ const DEFAULT_FILE = path.join(__dirname, 'data', 'settings.json');
 const MAX_SPEED = 126;
 const MAX_CONTROLLERS = 50;
 
+const TRACK_TYPES = ['straight', 'curve', 'turnout-left', 'turnout-right'];
+const ROTATIONS = [0, 90, 180, 270];
+const GRID_LIMITS = { minCols: 4, maxCols: 60, minRows: 4, maxRows: 40 };
+const DEFAULT_LAYOUT = { cols: 20, rows: 12, tiles: [] };
+
+const toInt = (value) => (Number.isInteger(Number(value)) ? Number(value) : NaN);
+
+const sanitizeLayout = (input) => {
+  if (!input || typeof input !== 'object') {
+    throw new Error('Invalid layout.');
+  }
+
+  const cols = toInt(input.cols);
+  const rows = toInt(input.rows);
+  if (!(cols >= GRID_LIMITS.minCols && cols <= GRID_LIMITS.maxCols)) {
+    throw new Error(`Columns must be between ${GRID_LIMITS.minCols} and ${GRID_LIMITS.maxCols}.`);
+  }
+  if (!(rows >= GRID_LIMITS.minRows && rows <= GRID_LIMITS.maxRows)) {
+    throw new Error(`Rows must be between ${GRID_LIMITS.minRows} and ${GRID_LIMITS.maxRows}.`);
+  }
+
+  const tiles = Array.isArray(input.tiles) ? input.tiles : [];
+  const occupied = new Set();
+  const ids = new Set();
+
+  const sanitizedTiles = tiles.map((tile) => {
+    const x = toInt(tile && tile.x);
+    const y = toInt(tile && tile.y);
+    if (!TRACK_TYPES.includes(tile && tile.type)) {
+      throw new Error(`Unknown track element: ${tile && tile.type}`);
+    }
+    if (!(x >= 0 && x < cols && y >= 0 && y < rows)) {
+      throw new Error('Track element is outside the layout grid.');
+    }
+    const cell = `${x},${y}`;
+    if (occupied.has(cell)) {
+      throw new Error(`More than one element at cell ${cell}.`);
+    }
+    occupied.add(cell);
+
+    let id = typeof tile.id === 'string' && /^[\w-]{1,64}$/.test(tile.id) ? tile.id : crypto.randomUUID();
+    if (ids.has(id)) id = crypto.randomUUID();
+    ids.add(id);
+
+    const rotation = toInt(tile.rotation);
+    return {
+      id,
+      type: tile.type,
+      x,
+      y,
+      rotation: ROTATIONS.includes(rotation) ? rotation : 0
+    };
+  });
+
+  return { cols, rows, tiles: sanitizedTiles };
+};
+
 const createController = (overrides = {}) => ({
   id: crypto.randomUUID(),
   name: 'Locomotive',
@@ -68,10 +125,18 @@ class SettingsStore {
       ? raw.activeControllerId
       : controllers[0].id;
 
+    let layout = { ...DEFAULT_LAYOUT };
+    try {
+      if (raw.layout) layout = sanitizeLayout(raw.layout);
+    } catch (error) {
+      console.error(`Ignoring invalid saved layout: ${error.message}`);
+    }
+
     return {
       serial: raw.serial && typeof raw.serial === 'object' ? raw.serial : {},
       controllers,
-      activeControllerId
+      activeControllerId,
+      layout
     };
   }
 
@@ -117,6 +182,20 @@ class SettingsStore {
     this.save();
     return this.getControllers();
   }
+
+  getLayout() {
+    const { cols, rows, tiles } = this.data.layout;
+    return { cols, rows, tiles: tiles.map((t) => ({ ...t })) };
+  }
+
+  setLayout(layout) {
+    this.data.layout = sanitizeLayout(layout);
+    this.save();
+    return this.getLayout();
+  }
 }
+
+SettingsStore.TRACK_TYPES = TRACK_TYPES;
+SettingsStore.GRID_LIMITS = GRID_LIMITS;
 
 module.exports = SettingsStore;

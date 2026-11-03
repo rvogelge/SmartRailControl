@@ -17,6 +17,9 @@
   --radius: 16px;
   --radius-sm: 10px;
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  --grid-line: #1c2731;
+  --rail: #c9d4de;
+  --ballast: #3a4856;
 }
 
 * {
@@ -533,6 +536,248 @@ select {
   gap: 10px;
 }
 
+/* Page tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.tabs a {
+  padding: 6px 14px;
+  border-radius: 9px;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.tabs a:hover {
+  color: var(--text);
+}
+
+.tabs a[aria-current='page'] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.save-state {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.save-state.error {
+  color: var(--danger);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Track layout editor */
+.layout-editor {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 20px;
+  padding: 24px 20px 40px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.palette {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  text-align: left;
+  font-weight: 600;
+}
+
+.palette-item:hover {
+  background: var(--surface-2);
+}
+
+.palette-item[aria-selected='true'] {
+  background: var(--accent-soft);
+  border-color: rgba(79, 179, 255, 0.4);
+}
+
+.palette-preview {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+}
+
+.preview-bg {
+  fill: var(--surface-2);
+  stroke: var(--border);
+  stroke-width: 3;
+}
+
+.preview-icon {
+  fill: var(--muted);
+}
+
+.preview-icon.outline {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.hint {
+  margin: 16px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+kbd {
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font: 600 0.75rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text);
+}
+
+.board-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.grid-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.grid-size input {
+  width: 68px;
+  padding: 6px 8px;
+}
+
+.board-scroll {
+  width: fit-content;
+  max-width: 100%;
+  overflow: auto;
+  max-height: calc(100vh - 230px);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: #0e151c;
+}
+
+.board {
+  display: block;
+  touch-action: none;
+  user-select: none;
+  cursor: copy;
+}
+
+.board[data-tool='select'] {
+  cursor: default;
+}
+
+.board[data-tool='select'] .tile {
+  cursor: grab;
+}
+
+.board[data-tool='eraser'] {
+  cursor: not-allowed;
+}
+
+.track path {
+  fill: none;
+  stroke-linecap: butt;
+}
+
+.track .ballast {
+  stroke: var(--ballast);
+  stroke-width: 30;
+}
+
+.track .rail {
+  stroke: var(--rail);
+  stroke-width: 9;
+}
+
+.track .switch-point {
+  fill: var(--warn);
+}
+
+.tile-bg {
+  fill: transparent;
+}
+
+.tile.selected .tile-bg {
+  fill: rgba(79, 179, 255, 0.12);
+  stroke: var(--accent);
+  stroke-width: 6;
+}
+
+.tile.selected .rail {
+  stroke: var(--accent);
+}
+
+.tile.dragging {
+  opacity: 0.3;
+}
+
+.hover-cell {
+  fill: rgba(79, 179, 255, 0.08);
+  stroke: rgba(79, 179, 255, 0.55);
+  stroke-width: 4;
+  stroke-dasharray: 12 8;
+}
+
+.hover-cell.erase {
+  fill: var(--danger-soft);
+  stroke: var(--danger);
+}
+
+.hover-cell.blocked {
+  fill: var(--danger-soft);
+  stroke: var(--danger);
+}
+
+.ghost-track {
+  opacity: 0.55;
+}
+
 /* Small screens: controller list becomes a horizontal strip */
 @media (max-width: 760px) {
   .layout {
@@ -568,6 +813,35 @@ select {
   }
 
   #statusText {
+    display: none;
+  }
+
+  .layout-editor {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .palette {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+  }
+
+  .palette li {
+    flex: 0 0 auto;
+  }
+
+  .palette-item {
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+
+  .hint {
+    display: none;
+  }
+
+  .brand-name {
     display: none;
   }
 }

@@ -16,7 +16,7 @@ const serialService = new SerialService(
   Number(savedSerial.baudRate || process.env.SERIAL_BAUD_RATE || SerialService.DEFAULT_BAUD_RATE)
 );
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/status', (_req, res) => {
@@ -63,6 +63,18 @@ app.get('/api/controllers', (_req, res) => {
 app.put('/api/controllers', (req, res) => {
   try {
     return res.json(settingsStore.setControllers(req.body || {}));
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+app.get('/api/layout', (_req, res) => {
+  res.json(settingsStore.getLayout());
+});
+
+app.put('/api/layout', (req, res) => {
+  try {
+    return res.json(settingsStore.setLayout(req.body || {}));
   } catch (error) {
     return res.status(400).json({ error: error.message });
   }

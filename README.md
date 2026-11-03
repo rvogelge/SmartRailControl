@@ -9,6 +9,7 @@ BirdRail is a small Raspberry Pi web app for controlling a model railway locomot
 - Live speed slider, forward/reverse toggle, stop and emergency stop
 - Interface settings (serial port, baud rate) in a separate dialog (gear icon)
 - Controllers and interface settings are stored on the Pi in `data/settings.json`, so every browser sees the same setup and it survives restarts
+- Track layout page (`/layout.html`, "Layout" tab) to draw a simple track plan on a square grid
 - Works on phones and desktop browsers on the local network
 
 ## Requirements
@@ -67,11 +68,24 @@ Environment variables:
 
 Moving the slider or changing the direction sends a command right away. Selecting another controller does not send anything; the locomotive is only driven once you move its slider. Interface settings saved in the dialog take precedence over `SERIAL_PORT` / `SERIAL_BAUD_RATE` on the next start. Delete `data/settings.json` to reset everything.
 
+## Track layout editor
+
+Open the **Layout** tab. Every element fills exactly one grid square and snaps to the grid.
+
+- **Add:** pick Straight, Curve, Turnout left or Turnout right in the element list, then click a square. Clicking the active element again (or pressing `R`) rotates it by 90°.
+- **Move:** choose *Select / move*, then drag an element to another free square.
+- **Remove:** select an element and press `Del` / *Remove*, or use the *Eraser* tool.
+- **Rotate:** select an element and press `R` / *Rotate*.
+- **Grid size:** change *Cols* / *Rows* (4–60 × 4–40). *Clear all* asks for a second click.
+
+The layout is saved automatically in `data/settings.json`.
+
 ## File overview
 
 - `server.js` – HTTP server and API endpoints
 - `serialService.js` – serial device wrapper and packet builder
 - `settingsStore.js` – stores controllers and interface settings in `data/settings.json`
-- `public/index.html` – web UI
+- `public/index.html` – locomotive control page
+- `public/layout.html`, `public/layout.js` – track layout editor
 - `public/app.js` – browser-side control logic
 - `public/styles.css` – styling

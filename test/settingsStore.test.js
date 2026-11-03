@@ -42,3 +42,28 @@ test('sanitizes speed and direction, rejects bad decoder IDs and empty lists', (
   assert.throws(() => store.setControllers({ controllers: [{ decoderId: 0 }] }));
   assert.throws(() => store.setControllers({ controllers: [] }));
 });
+
+test('stores a track layout and validates elements', () => {
+  const file = tmpFile();
+  const store = new SettingsStore(file);
+  assert.deepEqual(store.getLayout(), { cols: 20, rows: 12, tiles: [] });
+
+  store.setLayout({
+    cols: 10,
+    rows: 6,
+    tiles: [
+      { id: 't1', type: 'straight', x: 0, y: 0, rotation: 90 },
+      { id: 't2', type: 'turnout-left', x: 9, y: 5, rotation: 45 }
+    ]
+  });
+  const reloaded = new SettingsStore(file).getLayout();
+  assert.equal(reloaded.cols, 10);
+  assert.deepEqual(reloaded.tiles[1], { id: 't2', type: 'turnout-left', x: 9, y: 5, rotation: 0 });
+
+  assert.throws(() => store.setLayout({ cols: 10, rows: 6, tiles: [{ type: 'bridge', x: 0, y: 0 }] }));
+  assert.throws(() => store.setLayout({ cols: 10, rows: 6, tiles: [{ type: 'curve', x: 10, y: 0 }] }));
+  assert.throws(() => store.setLayout({
+    cols: 10, rows: 6, tiles: [{ type: 'curve', x: 1, y: 1 }, { type: 'straight', x: 1, y: 1 }]
+  }));
+  assert.throws(() => store.setLayout({ cols: 2, rows: 6, tiles: [] }));
+});
