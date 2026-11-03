@@ -1,11 +1,13 @@
 const { SerialPort } = require('serialport');
 
 const DEFAULT_BAUD_RATE = 57600;
+const DEFAULT_PROTOCOL = 'P50X';
 
 class SerialService {
   constructor(portName, baudRate = Number(process.env.SERIAL_BAUD_RATE || DEFAULT_BAUD_RATE)) {
     this.portName = portName || process.env.SERIAL_PORT || '/dev/ttyUSB0';
     this.baudRate = Number.isInteger(baudRate) ? Number(baudRate) : DEFAULT_BAUD_RATE;
+    this.protocol = (process.env.INTELLIBOX_PROTOCOL || DEFAULT_PROTOCOL).toUpperCase();
     this.connection = null;
     this.connected = false;
     this.lastPacket = [];
@@ -93,7 +95,7 @@ class SerialService {
     };
   }
 
-  buildLocomotivePacket({ decoderId, speed, direction, stop }) {
+  buildLegacyP50LocomotivePacket({ decoderId, speed, direction, stop }) {
     const address = Number(decoderId);
     const safeSpeed = stop ? 0 : Math.max(0, Math.min(127, Number(speed) || 0));
     const dirBit = direction === 'reverse' ? 0x20 : 0x00;
@@ -104,8 +106,32 @@ class SerialService {
       0x00
     ];
 
-    this.lastPacket = rawPacket;
     return rawPacket;
+  }
+
+  buildP50XLocomotivePacket({ decoderId, speed, direction, stop }) {
+    const address = Number(decoderId);
+    const safeSpeed = stop ? 0 : Math.max(0, Math.min(127, Number(speed) || 0));
+    const flags = direction === 'reverse' ? 0x00 : 0x20;
+
+    const rawPacket = [
+      0x80,
+      address & 0xff,
+      (address >> 8) & 0xff,
+      safeSpeed & 0x7f,
+      flags
+    ];
+
+    return rawPacket;
+  }
+
+  buildLocomotivePacket({ decoderId, speed, direction, stop }) {
+    const packet = this.protocol === 'P50'
+      ? this.buildLegacyP50LocomotivePacket({ decoderId, speed, direction, stop })
+      : this.buildP50XLocomotivePacket({ decoderId, speed, direction, stop });
+
+    this.lastPacket = packet;
+    return packet;
   }
 
   sendLocomotiveCommand({ decoderId, speed, direction, stop }) {
@@ -121,13 +147,15 @@ class SerialService {
       decoderId,
       speed: stop ? 0 : Math.max(0, Math.min(127, Number(speed) || 0)),
       direction,
-      stop
+      stop,
+      protocol: this.protocol
     });
 
     if (!this.connection || !this.connection.isOpen) {
       return {
         success: false,
         packet: packetHex,
+        response: this.lastReceivedPacket,
         error: `Serial port ${this.portName} is not open. Check the USB serial adapter and serial settings.`
       };
     }
@@ -140,7 +168,9 @@ class SerialService {
 
     return {
       success: true,
-      packet: packetHex
+      packet: packetHex,
+      response: this.lastReceivedPacket,
+      protocol: this.protocol
     };
   }
 }
