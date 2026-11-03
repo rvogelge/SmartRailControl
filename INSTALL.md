@@ -129,6 +129,12 @@ If the adapter appears under a different path, start the app with that value:
 SERIAL_PORT=/dev/ttyS0 npm start
 ```
 
+### Command sent but no locomotive response
+
+When the app is running, the terminal shows each transmitted and received serial packet in hex. Look for lines starting with `[Intellibox TX]` and `[Intellibox RX]`.
+
+If a command appears in TX but there is no RX traffic, the adapter, port, or Intellibox serial wiring is likely not communicating correctly. If the TX bytes are wrong or missing, check the port name, baud rate, and decoder ID before retrying.
+
 ## Notes
 
 This app is intended for a Raspberry Pi connected to an Intellibox command station through a USB serial adapter. The serial interface is configured in the application settings and the command generation logic lives in the serial service module.
