@@ -84,3 +84,14 @@ test('keeps switch and signal states, defaults invalid ones', () => {
   });
   assert.deepEqual(tiles.map((t) => t.state), ['diverging', 'straight', 'go', undefined, undefined, undefined]);
 });
+
+test('accepts 45° track elements', () => {
+  const store = new SettingsStore(tmpFile());
+  const types = ['diagonal', 'curve-45-left', 'curve-45-right', 'crossing-45'];
+  const { tiles } = store.setLayout({
+    cols: 6,
+    rows: 6,
+    tiles: types.map((type, i) => ({ id: `n${i}`, type, x: i, y: 0, rotation: 90 }))
+  });
+  assert.deepEqual(tiles.map((t) => t.type), types);
+});

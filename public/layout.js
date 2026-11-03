@@ -2,46 +2,69 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const CELL = 100; // SVG units per grid square
 const CELL_PX = 56; // on-screen size of one square
 
-// Each element is drawn in a 100×100 square. Edge midpoints are the connection
-// points: west (0,50), east (100,50), north (50,0), south (50,100).
+// Each element is drawn in a 100×100 square. Connection points are the edge
+// midpoints — west (0,50), east (100,50), north (50,0), south (50,100) — and the
+// corners for 45° diagonal track: NW (0,0), NE (100,0), SE (100,100), SW (0,100).
 //
 // Switchable elements define `routes` (one set of paths per state, first state is
 // the default). In each state the active route is drawn bright and the others dimmed.
-const ARC_WS = 'M0 50 A50 50 0 0 1 50 100'; // west → south
-const ARC_WN = 'M0 50 A50 50 0 0 0 50 0'; // west → north
-const ARC_NE = 'M50 0 A50 50 0 0 0 100 50'; // north → east
+
+// 45° curve: leaves an edge midpoint horizontally and arrives at a corner at 45°.
+// Arc radius 50 / (√2 − 1) ≈ 120.71 ends at (85.36, 85.36), then a short diagonal.
+const CURVE45_W_SE = 'M0 50 A120.71 120.71 0 0 1 85.36 85.36 L100 100'; // west → south-east corner
+const CURVE45_W_NE = 'M0 50 A120.71 120.71 0 0 0 85.36 14.64 L100 0'; // west → north-east corner
+const CURVE45_SW_E = 'M0 100 L14.64 85.36 A120.71 120.71 0 0 1 100 50'; // south-west corner → east
+const ARC90_WS = 'M0 50 A50 50 0 0 1 50 100'; // west → south (90°)
 const STRAIGHT_WE = 'M0 50 H100';
 const STRAIGHT_NS = 'M50 0 V100';
+const DIAGONAL_SW_NE = 'M0 100 L100 0';
 
 const ELEMENTS = {
   straight: {
     label: 'Straight',
     paths: [STRAIGHT_WE]
   },
+  diagonal: {
+    label: 'Diagonal',
+    paths: [DIAGONAL_SW_NE]
+  },
+  'curve-45-left': {
+    label: 'Curve 45° left',
+    paths: [CURVE45_W_NE]
+  },
+  'curve-45-right': {
+    label: 'Curve 45° right',
+    paths: [CURVE45_W_SE]
+  },
   curve: {
-    label: 'Curve',
-    paths: [ARC_WS]
+    label: 'Curve 90°',
+    paths: [ARC90_WS]
   },
   'turnout-left': {
     label: 'Turnout left',
-    routes: { straight: [STRAIGHT_WE], diverging: [ARC_WN] },
+    routes: { straight: [STRAIGHT_WE], diverging: [CURVE45_W_NE] },
     stateLabels: { straight: 'straight', diverging: 'diverging' },
     switchPoint: true
   },
   'turnout-right': {
     label: 'Turnout right',
-    routes: { straight: [STRAIGHT_WE], diverging: [ARC_WS] },
+    routes: { straight: [STRAIGHT_WE], diverging: [CURVE45_W_SE] },
     stateLabels: { straight: 'straight', diverging: 'diverging' },
     switchPoint: true
   },
   'double-slip': {
     label: 'Crossover switch',
-    routes: { straight: [STRAIGHT_WE, STRAIGHT_NS], turn: [ARC_WS, ARC_NE] },
+    // Straight W–E crossing the SW–NE diagonal; the slip routes curve W→NE and SW→E.
+    routes: { straight: [STRAIGHT_WE, DIAGONAL_SW_NE], turn: [CURVE45_W_NE, CURVE45_SW_E] },
     stateLabels: { straight: 'straight', turn: 'turning' },
     switchPoint: true
   },
+  'crossing-45': {
+    label: 'Crossing 45°',
+    paths: [STRAIGHT_WE, DIAGONAL_SW_NE]
+  },
   crossing: {
-    label: 'Crossing',
+    label: 'Crossing 90°',
     paths: [STRAIGHT_WE, STRAIGHT_NS]
   },
   buffer: {

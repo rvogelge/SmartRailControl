@@ -8,10 +8,14 @@ const MAX_CONTROLLERS = 50;
 
 const TRACK_TYPES = [
   'straight',
+  'diagonal',
+  'curve-45-left',
+  'curve-45-right',
   'curve',
   'turnout-left',
   'turnout-right',
   'double-slip',
+  'crossing-45',
   'crossing',
   'buffer',
   'signal'

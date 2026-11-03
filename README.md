@@ -76,7 +76,9 @@ The page has two modes, switched with **Edit / Run** in the toolbar (or the `E` 
 
 **Run mode** shows only the layout. Click a turnout, crossover switch or signal to change it: turnouts switch between straight and diverging, the crossover switch between straight and turning routes, and signals between red and green. The active route is drawn bright, the other route dimmed. States are saved with the layout.
 
-**Edit mode** — elements: Straight, Curve, Turnout left, Turnout right, Crossover switch (double slip), Crossing, Buffer stop, Signal.
+**Edit mode** — elements: Straight, Diagonal, Curve 45° left/right, Curve 90°, Turnout left/right, Crossover switch (double slip), Crossing 45°, Crossing 90°, Buffer stop, Signal.
+
+Track geometry: elements connect at the edge midpoints of a square and, for 45° track, at its corners. Turnouts branch off at 45° into a corner, the crossover switch crosses a straight track with a 45° diagonal. Use *Diagonal* and the 45° curves to continue a branch: two 45° curves (via a corner) make a 90° turn.
 
 - **Add:** pick an element in the element list, then click a square. Clicking the active element again (or pressing `R`) rotates it by 90°.
 - **Move:** choose *Select / move*, then drag an element to another free square.
