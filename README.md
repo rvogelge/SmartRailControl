@@ -44,7 +44,23 @@ If the adapter is not exposed as `/dev/ttyUSB0`, set the port by environment var
 SERIAL_PORT=/dev/ttyAMA0 npm start
 ```
 
-The app is configured for a LocoNet-style serial interface and defaults to a 57600 baud serial connection. This matches the setup where the USB adapter is connected to the Intellibox serial side rather than sending raw DCC packets directly. If a non-standard adapter uses a different rate, set `SERIAL_BAUD_RATE` before starting the app.
+The app talks to the Intellibox using the **P50X binary protocol (P50Xb)**. Every locomotive command is sent as an XLok command:
+
+```text
+0x58 ('X')  0x80  <addr low>  <addr high>  <speed>  <flags>
+```
+
+- speed: `0` = stop, `1` = emergency stop, `2..127` = speed (the UI slider 1–126 maps to 2–127)
+- flags: bit 5 = direction (1 = forward), bit 4 = light (F0)
+- the Intellibox answers with one status byte, `0x00` = OK
+
+Serial settings: **8 data bits, 2 stop bits, no parity, RTS/CTS handshake**. The first-generation Intellibox supports 2400, 4800, 9600, 19200 and 38400 baud. The app defaults to 19200. Set the same rate in the Intellibox menu (interface settings) and set the interface protocol to P50X (or P50+P50X).
+
+Environment variables:
+
+- `SERIAL_BAUD_RATE` – baud rate (default `19200`)
+- `SERIAL_RTSCTS=false` – turn off hardware handshake if your USB adapter does not wire CTS
+- `INTELLIBOX_PROTOCOL=P50` – use the legacy 6050-compatible P50 protocol (addresses 1–80, 14 speed steps)
 
 ## App behavior
 

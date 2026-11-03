@@ -46,14 +46,14 @@ const loadSerialConfig = async () => {
     const portsData = await portsResponse.json();
     const statusData = await statusResponse.json();
     const currentPort = (statusData.serial && statusData.serial.port) || '/dev/ttyUSB0';
-    const currentBaud = String((statusData.serial && statusData.serial.baudRate) || 57600);
+    const currentBaud = String((statusData.serial && statusData.serial.baudRate) || 19200);
 
     populateSerialPorts(portsData.ports, currentPort);
     baudRateSelect.value = currentBaud;
     updateStatus(Boolean(statusData.serial && statusData.serial.connected));
   } catch (_error) {
     populateSerialPorts([], '/dev/ttyUSB0');
-    baudRateSelect.value = '57600';
+    baudRateSelect.value = '19200';
     updateStatus(false);
   }
 };
@@ -127,6 +127,10 @@ form.addEventListener('submit', async (event) => {
       throw new Error(data.error || 'Command rejected by the server.');
     }
 
+    if (!data.ok) {
+      throw new Error(data.error || 'Command could not be sent to the Intellibox.');
+    }
+
     responseBox.textContent = `Sent decoder ${decoderId} to ${direction} at speed ${speed}.`;
     updateStatus(Boolean(data.status && data.status.connected));
   } catch (error) {
@@ -151,6 +155,10 @@ stopButton.addEventListener('click', async () => {
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.error || 'Stop command failed.');
+    }
+
+    if (!data.ok) {
+      throw new Error(data.error || 'Stop command could not be sent to the Intellibox.');
     }
 
     speedInput.value = '0';

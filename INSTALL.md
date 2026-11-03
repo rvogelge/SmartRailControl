@@ -56,20 +56,20 @@ The usual port is:
 /dev/ttyUSB0
 ```
 
-If the port differs, use the actual port name instead. The Intellibox serial interface is normally configured for 57600 baud unless your adapter or setup is non-standard.
+If the port differs, use the actual port name instead. The Intellibox (1st generation) serial interface supports 2400–38400 baud with 8N2 and RTS/CTS handshake. BirdRail defaults to 19200 baud; set the same value in the Intellibox interface menu, with the protocol set to P50X.
 
 ## 5. Start the app
 
 Run the application with the port set explicitly:
 
 ```bash
-SERIAL_PORT=/dev/ttyUSB0 SERIAL_BAUD_RATE=57600 npm start
+SERIAL_PORT=/dev/ttyUSB0 SERIAL_BAUD_RATE=19200 npm start
 ```
 
 If the port is `/dev/ttyAMA0`, use:
 
 ```bash
-SERIAL_PORT=/dev/ttyAMA0 SERIAL_BAUD_RATE=57600 npm start
+SERIAL_PORT=/dev/ttyAMA0 SERIAL_BAUD_RATE=19200 npm start
 ```
 
 The server starts on port 3000 by default.

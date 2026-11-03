@@ -31,10 +31,11 @@
             <label>
               Baud rate
               <select id="baudRateSelect" name="baudRate">
+                <option value="2400">2400</option>
+                <option value="4800">4800</option>
                 <option value="9600">9600</option>
-                <option value="19200">19200</option>
-                <option value="57600" selected>57600</option>
-                <option value="115200">115200</option>
+                <option value="19200" selected>19200</option>
+                <option value="38400">38400</option>
               </select>
             </label>
 
@@ -58,7 +59,7 @@
             <label for="speed">Speed</label>
             <output id="speedValue" for="speed">0</output>
           </div>
-          <input id="speed" name="speed" type="range" min="0" max="127" step="1" value="0" />
+          <input id="speed" name="speed" type="range" min="0" max="126" step="1" value="0" />
 
           <div class="action-row">
             <button type="button" id="stopButton" class="danger">Stop</button>
