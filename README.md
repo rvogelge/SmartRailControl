@@ -74,7 +74,7 @@ Open the **Layout** tab. Every element fills exactly one grid square and snaps t
 
 The page has two modes, switched with **Edit / Run** in the toolbar (or the `E` key). `layout.html#edit` and `layout.html#run` open a mode directly.
 
-**Run mode** shows only the layout. Click a turnout, crossover switch, signal or uncoupler to operate it: turnouts switch between straight and diverging, the crossover switch between straight and turning routes, and signals between red and green. The active route is drawn bright, the other route dimmed. States are saved with the layout.
+**Run mode** shows only the layout and operates the real accessories: every click sends the matching command to the Intellibox (see *Switching accessories* below). Click a turnout, crossover switch, signal or uncoupler to operate it: turnouts switch between straight and diverging, the crossover switch between straight and turning routes, and signals between red and green. The active route is drawn bright, the other route dimmed. States are saved with the layout.
 
 **Edit mode** — elements: Straight, Diagonal, Curve 45° left/right, Curve 90° R1, Curve 90° R2 (parallel), Turnout left/right, Three-way turnout, Crossover switch (double slip), Crossing 45°, Crossing 90°, Buffer stop, Signal, Contact track, Uncoupler.
 
@@ -95,6 +95,24 @@ Track geometry: elements connect at the edge midpoints of a square and, for 45°
 - **Grid size:** change *Cols* / *Rows* (4–60 × 4–40). *Clear all* asks for a second click.
 
 The layout is saved automatically in `data/settings.json`.
+
+## Switching accessories
+
+In run mode, switching a turnout, three-way turnout, crossover switch or signal, or triggering an uncoupler, sends the command to the decoder address(es) stored for that element. The browser only tells the server which element changed; the server looks up the addresses in the saved layout.
+
+- Protocol: P50X `XTrnt` — `0x58 0x90 <address low> <flags | address high>`, bit 7 = green, bit 6 = output on. With `INTELLIBOX_PROTOCOL=P50` the legacy commands `33`/`34` + address and `32` (off) are used.
+- Every output is switched on and, after `ACCESSORY_SWITCH_TIME_MS` (default 250 ms), off again — like pressing a key on the keyboard. Commands are sent one after another.
+- Green = straight / go, red = diverging / stop:
+
+| Element | State → outputs |
+|---|---|
+| Turnout left/right | straight → green, diverging → red |
+| Signal | go → green, stop → red |
+| Three-way turnout | straight → drive 1 green, drive 2 green · left → drive 2 green, then drive 1 red · right → drive 1 green, then drive 2 red |
+| Crossover switch | straight → both drives green · turning → both drives red |
+| Uncoupler | short pulse on green |
+
+The new state is saved even if the command could not be sent (no address, serial port not open); the status line then says *not sent* and why. Each command and the Intellibox reply are logged in the terminal (`[Intellibox TX]` / `[Intellibox RX]`). Contact tracks are inputs and send nothing.
 
 ## File overview
 

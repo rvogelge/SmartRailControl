@@ -762,13 +762,34 @@ const setMode = (mode) => {
   }
 };
 
+// Sends the operation to the server, which switches the decoder(s) on the Intellibox.
+const sendOperation = async (tile, newState, label) => {
+  try {
+    const response = await fetch('/api/layout/operate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: tile.id, state: newState })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Command rejected by the server.');
+    if (data.sent) {
+      setStatus(`${label} — sent to Intellibox.`, 'ok');
+    } else {
+      setStatus(`${label} — not sent: ${data.error}`, 'error');
+    }
+  } catch (error) {
+    setStatus(`${label} — not sent: ${error.message}`, 'error');
+  }
+};
+
 const operate = (tile) => {
   if (isSwitchable(tile.type)) {
     const states = statesOf(tile.type);
     tile.state = states[(states.indexOf(tile.state) + 1) % states.length];
-    scheduleSave();
     render();
-    setStatus(`${describe(tile)}: ${ELEMENTS[tile.type].stateLabels[tile.state]}.`, 'ok');
+    const label = `${describe(tile)}: ${ELEMENTS[tile.type].stateLabels[tile.state]}`;
+    setStatus(`${label} — sending…`);
+    sendOperation(tile, tile.state, label);
   } else if (isMomentary(tile.type)) {
     state.flashing.add(tile.id);
     render();
@@ -776,7 +797,9 @@ const operate = (tile) => {
       state.flashing.delete(tile.id);
       render();
     }, 700);
-    setStatus(`${describe(tile)}: triggered.`, 'ok');
+    const label = `${describe(tile)}: triggered`;
+    setStatus(`${label} — sending…`);
+    sendOperation(tile, undefined, label);
   } else if (tile.type === 'contact') {
     setStatus(`${describe(tile)}.`);
   }

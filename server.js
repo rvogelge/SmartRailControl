@@ -4,6 +4,7 @@ const express = require('express');
 const path = require('path');
 const SerialService = require('./serialService');
 const SettingsStore = require('./settingsStore');
+const TrackCatalog = require('./public/trackCatalog');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -77,6 +78,54 @@ app.put('/api/layout', (req, res) => {
     return res.json(settingsStore.setLayout(req.body || {}));
   } catch (error) {
     return res.status(400).json({ error: error.message });
+  }
+});
+
+// Run mode: operate a layout element. The browser sends only the element id and the
+// new state; addresses come from the saved layout. The state is saved even when the
+// command cannot be sent, and the reply says whether it reached the Intellibox.
+app.post('/api/layout/operate', async (req, res) => {
+  const { id, state } = req.body || {};
+  const tile = settingsStore.getTile(String(id || ''));
+  if (!tile) {
+    return res.status(404).json({ error: 'Unknown layout element.' });
+  }
+
+  const momentary = Boolean(TrackCatalog.TYPES[tile.type] && TrackCatalog.TYPES[tile.type].momentary);
+  let current = tile;
+  if (!momentary) {
+    try {
+      current = settingsStore.setTileState(tile.id, state);
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
+    }
+  }
+
+  const commands = TrackCatalog.commandsFor(tile.type, momentary ? 'trigger' : state);
+  if (!commands) {
+    return res.status(400).json({ error: `${tile.type} cannot be operated.` });
+  }
+
+  const addresses = tile.addresses || [];
+  const missing = commands.filter(([slot]) => !addresses[slot]).map(([slot]) => slot);
+  if (missing.length > 0) {
+    return res.json({ ok: false, sent: false, tile: current, error: 'no decoder address set.' });
+  }
+
+  try {
+    const result = await serialService.sendAccessoryCommands(
+      commands.map(([slot, color]) => ({ address: addresses[slot], color }))
+    );
+    return res.json({
+      ok: result.success,
+      sent: result.success,
+      tile: current,
+      packets: result.packets,
+      error: result.error
+    });
+  } catch (error) {
+    // Address out of range for the selected protocol.
+    return res.json({ ok: false, sent: false, tile: current, error: error.message });
   }
 });
 

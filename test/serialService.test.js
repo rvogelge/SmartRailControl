@@ -51,3 +51,47 @@ test('legacy P50 uses two-byte commands and toggles direction with speed 15', ()
   assert.deepEqual(service.buildLocomotivePacket({ decoderId: 24, speed: 63, direction: 'reverse' }), [7, 24]);
   assert.throws(() => service.buildLocomotivePacket({ decoderId: 81, speed: 0, direction: 'forward' }));
 });
+
+test('P50X XTrnt accessory packets: colour bit 7, on bit 6, 11-bit address', () => {
+  const service = createService();
+  assert.deepEqual(service.buildAccessoryPacket({ address: 12, color: 'red', on: true }), [0x58, 0x90, 0x0C, 0x40]);
+  assert.deepEqual(service.buildAccessoryPacket({ address: 12, color: 'green', on: true }), [0x58, 0x90, 0x0C, 0xC0]);
+  assert.deepEqual(service.buildAccessoryPacket({ address: 12, color: 'green', on: false }), [0x58, 0x90, 0x0C, 0x80]);
+  assert.deepEqual(service.buildAccessoryPacket({ address: 1025, color: 'red', on: true }), [0x58, 0x90, 0x01, 0x44]);
+  assert.throws(() => service.buildAccessoryPacket({ address: 0, color: 'red', on: true }));
+  assert.throws(() => service.buildAccessoryPacket({ address: 2048, color: 'red', on: true }));
+});
+
+test('legacy P50 accessory packets: 33 green, 34 red, 32 off', () => {
+  const service = createService('P50');
+  assert.deepEqual(service.buildAccessoryPacket({ address: 5, color: 'green', on: true }), [0x21, 5]);
+  assert.deepEqual(service.buildAccessoryPacket({ address: 5, color: 'red', on: true }), [0x22, 5]);
+  assert.deepEqual(service.buildAccessoryPacket({ address: 5, color: 'red', on: false }), [0x20]);
+});
+
+test('accessory commands switch each output on, then off, in order and queued', async () => {
+  const service = createService();
+  service.switchTimeMs = 5;
+  const writes = [];
+  service.connection = { isOpen: true, write: (buffer, callback) => { writes.push([...buffer]); callback(); } };
+
+  const [first, second] = await Promise.all([
+    service.sendAccessoryCommands([{ address: 3, color: 'green' }, { address: 4, color: 'red' }]),
+    service.sendAccessoryCommands([{ address: 9, color: 'red' }])
+  ]);
+  assert.equal(first.success, true);
+  assert.equal(second.success, true);
+  assert.deepEqual(writes, [
+    [0x58, 0x90, 3, 0xC0], [0x58, 0x90, 3, 0x80],
+    [0x58, 0x90, 4, 0x40], [0x58, 0x90, 4, 0x00],
+    [0x58, 0x90, 9, 0x40], [0x58, 0x90, 9, 0x00]
+  ]);
+});
+
+test('accessory commands report an error when the port is not open', async () => {
+  const service = createService();
+  service.connection = null;
+  const result = await service.sendAccessoryCommands([{ address: 3, color: 'green' }]);
+  assert.equal(result.success, false);
+  assert.match(result.error, /not open/);
+});

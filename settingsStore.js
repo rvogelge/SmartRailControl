@@ -230,6 +230,23 @@ class SettingsStore {
     this.save();
     return this.getLayout();
   }
+
+  getTile(id) {
+    const tile = this.data.layout.tiles.find((t) => t.id === id);
+    return tile ? { ...tile } : null;
+  }
+
+  // Run mode: change only the state of one element. Does not re-validate addresses,
+  // so operating a layout keeps working while address conflicts are being fixed.
+  setTileState(id, state) {
+    const tile = this.data.layout.tiles.find((t) => t.id === id);
+    const states = tile && ELEMENT_STATES[tile.type];
+    if (!tile) throw new Error('Unknown layout element.');
+    if (!states || !states.includes(state)) throw new Error(`Invalid state for ${tile.type}: ${state}`);
+    tile.state = state;
+    this.save();
+    return { ...tile };
+  }
 }
 
 SettingsStore.TRACK_TYPES = TRACK_TYPES;

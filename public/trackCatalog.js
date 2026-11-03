@@ -14,6 +14,8 @@
 
   // states: first entry is the default.
   // addresses: one label per decoder address the element needs.
+  // commands: per state (or 'trigger' for momentary elements) the outputs to switch,
+  // in order, as [address slot, 'green' | 'red']. Green = straight / go, red = diverging / stop.
   // footprint: { size, cells } — an element occupies an size×size block; `cells`
   // lists the squares (at rotation 0) its track actually uses. Default: 1×1.
   const TYPES = {
@@ -23,19 +25,41 @@
     'curve-45-right': {},
     curve: {},
     'curve-r2': { footprint: { size: 2, cells: [[0, 0], [1, 0], [1, 1]] } },
-    'turnout-left': { states: ['straight', 'diverging'], addresses: ['Turnout address'] },
-    'turnout-right': { states: ['straight', 'diverging'], addresses: ['Turnout address'] },
+    'turnout-left': {
+      states: ['straight', 'diverging'],
+      addresses: ['Turnout address'],
+      commands: { straight: [[0, 'green']], diverging: [[0, 'red']] }
+    },
+    'turnout-right': {
+      states: ['straight', 'diverging'],
+      addresses: ['Turnout address'],
+      commands: { straight: [[0, 'green']], diverging: [[0, 'red']] }
+    },
     'turnout-3way': {
       states: ['straight', 'left', 'right'],
-      addresses: ['Drive 1 (left)', 'Drive 2 (right)']
+      addresses: ['Drive 1 (left)', 'Drive 2 (right)'],
+      // Only one drive may be diverging: reset the other one first.
+      commands: {
+        straight: [[0, 'green'], [1, 'green']],
+        left: [[1, 'green'], [0, 'red']],
+        right: [[0, 'green'], [1, 'red']]
+      }
     },
-    'double-slip': { states: ['straight', 'turn'], addresses: ['Drive 1', 'Drive 2'] },
+    'double-slip': {
+      states: ['straight', 'turn'],
+      addresses: ['Drive 1', 'Drive 2'],
+      commands: { straight: [[0, 'green'], [1, 'green']], turn: [[0, 'red'], [1, 'red']] }
+    },
     'crossing-45': {},
     crossing: {},
     buffer: {},
-    signal: { states: ['stop', 'go'], addresses: ['Signal address'] },
+    signal: {
+      states: ['stop', 'go'],
+      addresses: ['Signal address'],
+      commands: { stop: [[0, 'red']], go: [[0, 'green']] }
+    },
     contact: { addresses: ['Contact no. (feedback)'], addressSpace: 'feedback' },
-    uncoupler: { addresses: ['Uncoupler address'], momentary: true }
+    uncoupler: { addresses: ['Uncoupler address'], momentary: true, commands: { trigger: [[0, 'green']] } }
   };
 
   // Turnouts, signals and uncouplers share the accessory address range of the command
@@ -94,6 +118,7 @@
     cellsOf,
     ADDRESS_SPACES,
     addressSpace,
+    commandsFor: (type, state) => (TYPES[type] && TYPES[type].commands && TYPES[type].commands[state]) || null,
     findAddressConflicts
   };
 });

@@ -154,3 +154,23 @@ test('rejects duplicate decoder addresses within an address space', () => {
     { type: 'signal', x: 3, y: 0, addresses: [null] }
   ] });
 });
+
+test('state commands: three-way turnout resets the other drive first', () => {
+  const TrackCatalog = require('../public/trackCatalog');
+  assert.deepEqual(TrackCatalog.commandsFor('turnout-left', 'diverging'), [[0, 'red']]);
+  assert.deepEqual(TrackCatalog.commandsFor('signal', 'go'), [[0, 'green']]);
+  assert.deepEqual(TrackCatalog.commandsFor('turnout-3way', 'left'), [[1, 'green'], [0, 'red']]);
+  assert.deepEqual(TrackCatalog.commandsFor('double-slip', 'turn'), [[0, 'red'], [1, 'red']]);
+  assert.deepEqual(TrackCatalog.commandsFor('uncoupler', 'trigger'), [[0, 'green']]);
+  assert.equal(TrackCatalog.commandsFor('contact', 'x'), null);
+});
+
+test('setTileState changes and saves only the state of one element', () => {
+  const file = tmpFile();
+  const store = new SettingsStore(file);
+  store.setLayout({ cols: 6, rows: 6, tiles: [{ id: 's1', type: 'signal', x: 0, y: 0, addresses: [4] }] });
+  assert.equal(store.setTileState('s1', 'go').state, 'go');
+  assert.equal(new SettingsStore(file).getTile('s1').state, 'go');
+  assert.throws(() => store.setTileState('s1', 'diverging'));
+  assert.throws(() => store.setTileState('nope', 'go'));
+});

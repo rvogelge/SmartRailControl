@@ -11,7 +11,23 @@ const P50X_PREFIX = 0x58;
 const P50X_XLOK = 0x80;
 const P50X_DIR_FORWARD = 0x20;
 const P50X_LIGHT = 0x10;
+const P50X_XTRNT = 0x90;
 const P50X_STATUS_OK = 0x00;
+// One-byte replies of the Intellibox to P50X commands.
+const P50X_REPLIES = {
+  0x00: 'OK',
+  0x02: 'XBADPRM (bad parameter)',
+  0x0b: 'XNOSLOT (command queue full)',
+  0x41: 'XLKHALT (accepted, Intellibox in halt mode)',
+  0x42: 'XLKPOFF (accepted, track power off)'
+};
+
+// Solenoid outputs are switched on and off again after this time (like a keyboard press).
+const DEFAULT_SWITCH_TIME_MS = 250;
+const P50X_MAX_ACCESSORY = 2047; // 11-bit address field
+const P50_MAX_ACCESSORY = 256;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // UI speed range 0..126; P50X uses 0 = stop, 1 = emergency stop, 2..127 = speed steps.
 const MAX_SPEED = 126;
@@ -25,6 +41,8 @@ class SerialService {
     this.protocol = (process.env.INTELLIBOX_PROTOCOL || DEFAULT_PROTOCOL).toUpperCase();
     this.hardwareHandshake = process.env.SERIAL_RTSCTS !== 'false';
     this.p50Directions = new Map();
+    this.switchTimeMs = Number(process.env.ACCESSORY_SWITCH_TIME_MS || DEFAULT_SWITCH_TIME_MS);
+    this.queue = Promise.resolve();
     this.connection = null;
     this.connected = false;
     this.lastPacket = [];
@@ -86,7 +104,7 @@ class SerialService {
         this.lastReceivedPacket = bytes;
         const metadata = { length: bytes.length };
         if (this.protocol !== 'P50' && bytes.length > 0) {
-          metadata.status = bytes[0] === P50X_STATUS_OK ? 'OK' : `error 0x${bytes[0].toString(16).padStart(2, '0').toUpperCase()}`;
+          metadata.status = P50X_REPLIES[bytes[0]] || `unknown reply 0x${bytes[0].toString(16).padStart(2, '0').toUpperCase()}`;
         }
         this.logCommunication('rx', bytes, metadata);
       });
@@ -216,8 +234,84 @@ class SerialService {
       protocol: this.protocol
     };
   }
+
+  /* ---------- Accessories (turnouts, signals, uncouplers) ---------- */
+
+  // color: 'green' (straight / go) or 'red' (diverging / stop); on: output on or off.
+  // P50X XTrnt: 'X', 0x90, address low, [bit7 = green, bit6 = on, bits2..0 = address high].
+  // Legacy P50: [33 = green | 34 = red, address 1..256 (256 sent as 0)], off = [32].
+  buildAccessoryPacket({ address, color, on }) {
+    const value = Number(address);
+    const green = color === 'green';
+
+    if (this.protocol === 'P50') {
+      if (!on) return [0x20];
+      if (!Number.isInteger(value) || value < 1 || value > P50_MAX_ACCESSORY) {
+        throw new Error(`P50 supports accessory addresses 1-${P50_MAX_ACCESSORY} only.`);
+      }
+      return [green ? 0x21 : 0x22, value & 0xff];
+    }
+
+    if (!Number.isInteger(value) || value < 1 || value > P50X_MAX_ACCESSORY) {
+      throw new Error(`P50X supports accessory addresses 1-${P50X_MAX_ACCESSORY}.`);
+    }
+    return [
+      P50X_PREFIX,
+      P50X_XTRNT,
+      value & 0xff,
+      ((value >> 8) & 0x07) | (green ? 0x80 : 0x00) | (on ? 0x40 : 0x00)
+    ];
+  }
+
+  writePacket(packet, metadata = {}) {
+    this.lastPacket = packet;
+    this.logCommunication('tx', packet, { ...metadata, protocol: this.protocol });
+
+    if (!this.connection || !this.connection.isOpen) {
+      return Promise.reject(
+        new Error(`Serial port ${this.portName} is not open. Check the USB serial adapter and serial settings.`)
+      );
+    }
+
+    return new Promise((resolve, reject) => {
+      this.connection.write(Buffer.from(packet), (error) => {
+        if (error) {
+          console.error('[Intellibox TX ERROR]', error.message);
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  // Sends [{ address, color }] one after another: output on, wait, output off.
+  // Calls are queued so commands from fast clicks never interleave.
+  sendAccessoryCommands(commands) {
+    const packets = commands.flatMap(({ address, color }) => [
+      this.buildAccessoryPacket({ address, color, on: true }),
+      this.buildAccessoryPacket({ address, color, on: false })
+    ]);
+    const toHex = (packet) => this.formatPacketHex(packet);
+
+    const run = async () => {
+      for (const { address, color } of commands) {
+        await this.writePacket(this.buildAccessoryPacket({ address, color, on: true }), { accessory: address, color, on: true });
+        await sleep(this.switchTimeMs);
+        await this.writePacket(this.buildAccessoryPacket({ address, color, on: false }), { accessory: address, color, on: false });
+      }
+    };
+
+    const job = this.queue.then(run);
+    this.queue = job.catch(() => {});
+    return job.then(
+      () => ({ success: true, packets: packets.map(toHex) }),
+      (error) => ({ success: false, packets: packets.map(toHex), error: error.message })
+    );
+  }
 }
 
+SerialService.P50X_STATUS_OK = P50X_STATUS_OK;
 SerialService.DEFAULT_BAUD_RATE = DEFAULT_BAUD_RATE;
 SerialService.SUPPORTED_BAUD_RATES = SUPPORTED_BAUD_RATES;
 SerialService.MAX_SPEED = MAX_SPEED;
