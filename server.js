@@ -3,12 +3,17 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const SerialService = require('./serialService');
+const SettingsStore = require('./settingsStore');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
+const settingsStore = new SettingsStore();
+const savedSerial = settingsStore.getSerial();
+
+// Settings saved from the web interface win over environment defaults.
 const serialService = new SerialService(
-  process.env.SERIAL_PORT || '/dev/ttyUSB0',
-  Number(process.env.SERIAL_BAUD_RATE || SerialService.DEFAULT_BAUD_RATE)
+  savedSerial.portName || process.env.SERIAL_PORT || '/dev/ttyUSB0',
+  Number(savedSerial.baudRate || process.env.SERIAL_BAUD_RATE || SerialService.DEFAULT_BAUD_RATE)
 );
 
 app.use(express.json());
@@ -44,9 +49,22 @@ app.post('/api/config', (req, res) => {
     }
 
     const status = serialService.setConfiguration({ portName, baudRate });
+    settingsStore.setSerial({ portName, baudRate });
     return res.json({ ok: true, serial: status });
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/controllers', (_req, res) => {
+  res.json(settingsStore.getControllers());
+});
+
+app.put('/api/controllers', (req, res) => {
+  try {
+    return res.json(settingsStore.setControllers(req.body || {}));
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
   }
 });
 

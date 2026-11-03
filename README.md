@@ -4,11 +4,12 @@ BirdRail is a small Raspberry Pi web app for controlling a model railway locomot
 
 ## Features
 
-- Enter a decoder ID
-- Set the speed with a slider
-- Stop the locomotive
-- Choose forward or reverse
-- Use the web interface from a browser on the local network
+- Several saved locomotive controllers, selectable from a list (add, rename, delete)
+- Each controller keeps its decoder ID, speed and direction
+- Live speed slider, forward/reverse toggle, stop and emergency stop
+- Interface settings (serial port, baud rate) in a separate dialog (gear icon)
+- Controllers and interface settings are stored on the Pi in `data/settings.json`, so every browser sees the same setup and it survives restarts
+- Works on phones and desktop browsers on the local network
 
 ## Requirements
 
@@ -64,12 +65,13 @@ Environment variables:
 
 ## App behavior
 
-The web page sends a command to the server on each change. The server validates the decoder ID and transmits the command to the configured serial connection.
+Moving the slider or changing the direction sends a command right away. Selecting another controller does not send anything; the locomotive is only driven once you move its slider. Interface settings saved in the dialog take precedence over `SERIAL_PORT` / `SERIAL_BAUD_RATE` on the next start. Delete `data/settings.json` to reset everything.
 
 ## File overview
 
 - `server.js` – HTTP server and API endpoints
 - `serialService.js` – serial device wrapper and packet builder
+- `settingsStore.js` – stores controllers and interface settings in `data/settings.json`
 - `public/index.html` – web UI
 - `public/app.js` – browser-side control logic
 - `public/styles.css` – styling

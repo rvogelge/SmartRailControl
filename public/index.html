@@ -3,75 +3,118 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BirdRail Controls</title>
+    <meta name="theme-color" content="#0b1117" />
+    <title>BirdRail</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <section class="panel control-panel">
-        <div class="header-row">
-          <div>
-            <p class="eyebrow">Raspberry Pi</p>
-            <h1>BirdRail</h1>
-          </div>
-          <div id="status-chip" class="status-chip offline">offline</div>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 3h12a3 3 0 0 1 3 3v8a4 4 0 0 1-3.2 3.92l1.9 2.37a.75.75 0 1 1-1.17.94L16.06 18H7.94l-2.47 3.23a.75.75 0 1 1-1.18-.94l1.9-2.37A4 4 0 0 1 3 14V6a3 3 0 0 1 3-3Zm0 1.5A1.5 1.5 0 0 0 4.5 6v4h15V6A1.5 1.5 0 0 0 18 4.5H6Zm1.5 9a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z"/></svg>
+        </span>
+        <span class="brand-name">BirdRail</span>
+      </div>
+
+      <div class="topbar-actions">
+        <button type="button" id="statusChip" class="status-chip offline" title="Interface status">
+          <span class="dot" aria-hidden="true"></span>
+          <span id="statusText">offline</span>
+        </button>
+        <button type="button" id="openSettings" class="icon-button" aria-label="Interface settings" title="Interface settings">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm0 5.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm8.6-3.1-1.7-.4a7 7 0 0 0-.6-1.5l.9-1.5a.75.75 0 0 0-.1-.9l-1.7-1.7a.75.75 0 0 0-.9-.1l-1.5.9a7 7 0 0 0-1.5-.6l-.4-1.7A.75.75 0 0 0 12.4 3h-2.4a.75.75 0 0 0-.7.6l-.4 1.7a7 7 0 0 0-1.5.6l-1.5-.9a.75.75 0 0 0-.9.1L3.3 6.8a.75.75 0 0 0-.1.9l.9 1.5a7 7 0 0 0-.6 1.5l-1.7.4a.75.75 0 0 0-.6.7v2.4c0 .35.24.65.6.73l1.7.4c.14.52.35 1.02.6 1.5l-.9 1.5a.75.75 0 0 0 .1.9l1.7 1.7c.24.24.62.29.9.1l1.5-.9c.48.26.98.46 1.5.6l.4 1.7c.08.35.38.6.73.6h2.4c.35 0 .65-.24.73-.6l.4-1.7c.52-.14 1.02-.34 1.5-.6l1.5.9c.29.19.66.14.9-.1l1.7-1.7a.75.75 0 0 0 .1-.9l-.9-1.5c.26-.48.46-.98.6-1.5l1.7-.4a.75.75 0 0 0 .6-.73V11.6a.75.75 0 0 0-.6-.7Z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="card controller-list-card" aria-label="Controllers">
+        <div class="card-header">
+          <h2>Controllers</h2>
+          <button type="button" id="addController" class="ghost small">+ Add</button>
         </div>
+        <ul id="controllerList" class="controller-list" role="listbox" aria-label="Select controller"></ul>
+      </aside>
 
-        <div class="settings-panel">
-          <div class="settings-header">
-            <h2>Serial setup</h2>
-          </div>
-
-          <form id="serial-config-form" class="serial-config-form">
-            <label>
-              USB Port
-              <select id="serialPortSelect" name="serialPort"></select>
-            </label>
-
-            <label>
-              Baud rate
-              <select id="baudRateSelect" name="baudRate">
-                <option value="2400">2400</option>
-                <option value="4800">4800</option>
-                <option value="9600">9600</option>
-                <option value="19200" selected>19200</option>
-                <option value="38400">38400</option>
-              </select>
-            </label>
-
-            <button type="submit" class="secondary">Apply serial setup</button>
-          </form>
-        </div>
-
-        <form id="locomotive-form" class="controller-form">
-          <label>
-            Decoder ID
-            <input id="decoderId" name="decoderId" type="number" min="1" max="9999" value="3" required />
+      <section class="card throttle" aria-label="Locomotive control">
+        <div class="throttle-head">
+          <input id="controllerName" class="name-input" type="text" maxlength="40" aria-label="Controller name" />
+          <label class="decoder-field">
+            <span>Decoder</span>
+            <input id="decoderId" type="number" min="1" max="10239" inputmode="numeric" required />
           </label>
+        </div>
 
-          <fieldset class="direction-group">
-            <legend>Direction</legend>
-            <label><input type="radio" name="direction" value="forward" checked /> Forward</label>
-            <label><input type="radio" name="direction" value="reverse" /> Reverse</label>
-          </fieldset>
+        <div class="speed-display">
+          <output id="speedValue" for="speed">0</output>
+          <span class="speed-unit">/ 126</span>
+          <span id="directionBadge" class="direction-badge">Forward</span>
+        </div>
 
-          <div class="slider-row">
-            <label for="speed">Speed</label>
-            <output id="speedValue" for="speed">0</output>
-          </div>
-          <input id="speed" name="speed" type="range" min="0" max="126" step="1" value="0" />
+        <input id="speed" class="speed-slider" type="range" min="0" max="126" step="1" value="0" aria-label="Speed" />
 
-          <div class="action-row">
-            <button type="button" id="stopButton" class="danger">Stop</button>
-            <button type="submit" class="primary">Send command</button>
-          </div>
-        </form>
+        <div class="segmented" role="radiogroup" aria-label="Direction">
+          <button type="button" class="segment" data-direction="reverse" role="radio" aria-checked="false">
+            ◀ Reverse
+          </button>
+          <button type="button" class="segment" data-direction="forward" role="radio" aria-checked="true">
+            Forward ▶
+          </button>
+        </div>
 
-        <div id="responseBox" class="response-box" aria-live="polite">
-          Ready.
+        <div class="actions">
+          <button type="button" id="stopButton" class="stop">Stop</button>
+          <button type="button" id="emergencyButton" class="emergency">Emergency stop</button>
+        </div>
+
+        <div class="throttle-foot">
+          <p id="responseBox" class="response" aria-live="polite">Ready.</p>
+          <button type="button" id="deleteController" class="ghost small danger-text">Delete controller</button>
         </div>
       </section>
     </main>
+
+    <dialog id="settingsDialog" class="dialog">
+      <form id="serialConfigForm" method="dialog">
+        <div class="dialog-head">
+          <h2>Interface settings</h2>
+          <button type="button" class="icon-button" data-close aria-label="Close">✕</button>
+        </div>
+
+        <label class="field">
+          <span>Serial port</span>
+          <div class="field-row">
+            <select id="serialPortSelect" name="serialPort"></select>
+            <button type="button" id="refreshPorts" class="ghost small" title="Refresh ports">Refresh</button>
+          </div>
+        </label>
+
+        <label class="field">
+          <span>Baud rate</span>
+          <select id="baudRateSelect" name="baudRate">
+            <option value="2400">2400</option>
+            <option value="4800">4800</option>
+            <option value="9600">9600</option>
+            <option value="19200">19200</option>
+            <option value="38400">38400</option>
+          </select>
+          <small>Must match the baud rate set in the Intellibox interface menu.</small>
+        </label>
+
+        <dl class="info-grid">
+          <div><dt>Protocol</dt><dd id="infoProtocol">–</dd></div>
+          <div><dt>Line</dt><dd id="infoLine">8N2</dd></div>
+          <div><dt>Status</dt><dd id="infoStatus">–</dd></div>
+        </dl>
+
+        <p id="settingsMessage" class="response" aria-live="polite"></p>
+
+        <div class="dialog-actions">
+          <button type="button" class="ghost" data-close>Cancel</button>
+          <button type="submit" class="primary">Apply</button>
+        </div>
+      </form>
+    </dialog>
 
     <script src="app.js"></script>
   </body>
