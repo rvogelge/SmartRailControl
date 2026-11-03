@@ -1,19 +1,41 @@
 const { SerialPort } = require('serialport');
 
 class SerialService {
-  constructor(portName) {
+  constructor(portName, baudRate = Number(process.env.SERIAL_BAUD_RATE || 19200)) {
     this.portName = portName || process.env.SERIAL_PORT || '/dev/ttyUSB0';
+    this.baudRate = Number.isInteger(baudRate) ? Number(baudRate) : 19200;
     this.connection = null;
     this.connected = false;
     this.lastPacket = [];
     this.connect();
   }
 
+  async listPorts() {
+    return SerialPort.list();
+  }
+
+  setConfiguration({ portName, baudRate }) {
+    if (portName) {
+      this.portName = portName;
+    }
+
+    if (baudRate) {
+      this.baudRate = Number(baudRate);
+    }
+
+    this.connect();
+    return this.getStatus();
+  }
+
   connect() {
+    if (this.connection && this.connection.isOpen) {
+      this.connection.close();
+    }
+
     try {
       this.connection = new SerialPort({
         path: this.portName,
-        baudRate: 57600,
+        baudRate: this.baudRate,
         dataBits: 8,
         stopBits: 1,
         parity: 'none'
@@ -21,7 +43,7 @@ class SerialService {
 
       this.connection.on('open', () => {
         this.connected = true;
-        console.log(`Connected to serial interface on ${this.portName}`);
+        console.log(`Connected to serial interface on ${this.portName} @ ${this.baudRate} baud`);
       });
 
       this.connection.on('close', () => {
@@ -44,33 +66,24 @@ class SerialService {
     return {
       connected: this.connected,
       port: this.portName,
+      baudRate: this.baudRate,
       lastPacket: this.lastPacket
     };
   }
 
   buildLocomotivePacket({ decoderId, speed, direction, stop }) {
-    // The Intellibox connected via a LocoNet-capable serial adapter expects a
-    // LocoNet-style serial packet, not a raw DCC locomotive packet.
     const address = Number(decoderId);
     const safeSpeed = stop ? 0 : Math.max(0, Math.min(127, Number(speed) || 0));
-    const directionByte = direction === 'reverse' ? 0x20 : 0x00;
+    const dirBit = direction === 'reverse' ? 0x20 : 0x00;
 
-    // LocoNet-style frame skeleton: packet marker, operation code, address bytes,
-    // speed/direction byte, and a checksum byte.
-    const frame = [
-      0x80,
-      0xA5,
-      address & 0xFF,
-      (address >> 8) & 0xFF,
-      (directionByte | (safeSpeed & 0x1F)) & 0xFF,
+    const rawPacket = [
+      0x80 | (address & 0x7f),
+      0x40 | dirBit | Math.min(0x1f, safeSpeed >> 1),
       0x00
     ];
 
-    const checksum = (0x100 - (frame.slice(1).reduce((sum, byte) => sum + byte, 0) & 0xFF)) & 0xFF;
-    const loconetPacket = [...frame.slice(0, -1), checksum];
-
-    this.lastPacket = loconetPacket;
-    return loconetPacket;
+    this.lastPacket = rawPacket;
+    return rawPacket;
   }
 
   sendLocomotiveCommand({ decoderId, speed, direction, stop }) {
@@ -87,7 +100,7 @@ class SerialService {
       return {
         success: false,
         packet: packetHex,
-        error: `Serial port ${this.portName} is not open. Check that the USB serial adapter is connected.`
+        error: `Serial port ${this.portName} is not open. Check the USB serial adapter and serial settings.`
       };
     }
 

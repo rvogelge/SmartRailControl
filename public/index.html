@@ -17,6 +17,31 @@
           <div id="status-chip" class="status-chip offline">offline</div>
         </div>
 
+        <div class="settings-panel">
+          <div class="settings-header">
+            <h2>Serial setup</h2>
+          </div>
+
+          <form id="serial-config-form" class="serial-config-form">
+            <label>
+              USB Port
+              <select id="serialPortSelect" name="serialPort"></select>
+            </label>
+
+            <label>
+              Baud rate
+              <select id="baudRateSelect" name="baudRate">
+                <option value="9600">9600</option>
+                <option value="19200" selected>19200</option>
+                <option value="57600">57600</option>
+                <option value="115200">115200</option>
+              </select>
+            </label>
+
+            <button type="submit" class="secondary">Apply serial setup</button>
+          </form>
+        </div>
+
         <form id="locomotive-form" class="controller-form">
           <label>
             Decoder ID

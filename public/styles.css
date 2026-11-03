@@ -26,7 +26,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -86,16 +87,31 @@ h1 {
   color: var(--danger);
 }
 
-.controller-form {
-  display: grid;
-  gap: 20px;
+.settings-panel {
+  margin-bottom: 22px;
+  padding: 18px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(6, 19, 24, 0.45);
 }
 
-label,
-legend {
+.settings-header h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.serial-config-form {
+  display: grid;
+  gap: 12px;
+}
+
+.serial-config-form label {
+  display: grid;
+  gap: 8px;
   color: var(--muted);
 }
 
+select,
 input[type='number'] {
   width: 100%;
   margin-top: 8px;
@@ -104,6 +120,16 @@ input[type='number'] {
   background: rgba(6, 19, 24, 0.95);
   color: var(--text);
   padding: 0.8rem 0.9rem;
+}
+
+.controller-form {
+  display: grid;
+  gap: 20px;
+}
+
+label,
+legend {
+  color: var(--muted);
 }
 
 .direction-group {
@@ -172,6 +198,13 @@ button.primary {
   background: linear-gradient(135deg, var(--primary), var(--primary-deep));
   color: #061116;
   flex: 1;
+}
+
+button.secondary {
+  background: rgba(129, 230, 255, 0.1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  width: 100%;
 }
 
 button.danger {

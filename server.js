@@ -6,7 +6,10 @@ const SerialService = require('./serialService');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
-const serialService = new SerialService(process.env.SERIAL_PORT || '/dev/ttyUSB0');
+const serialService = new SerialService(
+  process.env.SERIAL_PORT || '/dev/ttyUSB0',
+  Number(process.env.SERIAL_BAUD_RATE || 19200)
+);
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -16,6 +19,31 @@ app.get('/api/status', (_req, res) => {
     app: 'bird_rail',
     serial: serialService.getStatus()
   });
+});
+
+app.get('/api/serial/ports', async (_req, res) => {
+  try {
+    const ports = await serialService.listPorts();
+    res.json({ ports: ports.map((port) => ({ path: port.path, manufacturer: port.manufacturer || null })) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/config', (req, res) => {
+  try {
+    const portName = req.body.portName || serialService.portName;
+    const baudRate = Number(req.body.baudRate || serialService.baudRate || 19200);
+
+    if (!portName) {
+      return res.status(400).json({ error: 'A serial port is required.' });
+    }
+
+    const status = serialService.setConfiguration({ portName, baudRate });
+    return res.json({ ok: true, serial: status });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 app.post('/api/locomotive/control', (req, res) => {
