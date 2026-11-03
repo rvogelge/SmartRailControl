@@ -34,7 +34,7 @@
         <ul id="palette" class="palette" role="listbox" aria-label="Select element"></ul>
         <p class="hint">
           Pick an element, then click a square to place it. Select an element to set its decoder address (double-click jumps to the field).<br />
-          <kbd>R</kbd> rotate · <kbd>Del</kbd> remove · <kbd>Esc</kbd> select tool · <kbd>E</kbd> edit/run
+          <kbd>Shift</kbd>/<kbd>Ctrl</kbd>-click or drag a frame to select several · <kbd>←↑→↓</kbd> move · <kbd>R</kbd> rotate · <kbd>Del</kbd> remove · <kbd>Ctrl</kbd>+<kbd>A</kbd> all · <kbd>Esc</kbd> select tool · <kbd>E</kbd> edit/run · <kbd>+</kbd>/<kbd>−</kbd>/<kbd>0</kbd> zoom/fit
         </p>
       </aside>
 
@@ -47,6 +47,13 @@
           <div class="toolbar-group edit-only">
             <button type="button" id="rotateButton" class="ghost small" title="Rotate (R)">⟳ Rotate</button>
             <button type="button" id="deleteButton" class="ghost small danger-text" title="Remove (Del)">Remove</button>
+            <button type="button" id="checkButton" class="ghost small check-button" aria-controls="issuesPanel" title="Check decoder addresses">✓ Check</button>
+          </div>
+          <div class="toolbar-group zoom-group" role="group" aria-label="Zoom">
+            <button type="button" id="zoomOut" class="ghost small icon-text" title="Zoom out (−)" aria-label="Zoom out">−</button>
+            <span id="zoomLabel" class="zoom-label">100%</span>
+            <button type="button" id="zoomIn" class="ghost small icon-text" title="Zoom in (+)" aria-label="Zoom in">+</button>
+            <button type="button" id="zoomFit" class="ghost small" title="Fit to screen (0)" aria-pressed="false">Fit</button>
           </div>
           <div class="toolbar-group edit-only">
             <label class="grid-size">
@@ -59,6 +66,10 @@
             </label>
             <button type="button" id="clearButton" class="ghost small danger-text">Clear all</button>
           </div>
+        </div>
+
+        <div id="issuesPanel" class="issues-panel edit-only" hidden>
+          <ul id="issuesList" class="issues-list"></ul>
         </div>
 
         <div id="propsBar" class="props-bar edit-only" hidden>

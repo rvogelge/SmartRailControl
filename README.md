@@ -82,12 +82,16 @@ The page has two modes, switched with **Edit / Run** in the toolbar (or the `E` 
 
 **Decoder addresses:** every element with an action — turnouts, three-way turnout, crossover switch, signals, uncouplers and contact tracks — has decoder address fields (1–2048). Select the element in edit mode; the fields appear above the grid (double-click an element to jump there). Three-way turnouts and crossover switches have two drives, so they get two addresses. The address is shown as a badge on the element; `?` marks a missing address. For contact tracks the number is the feedback contact.
 
+**Address check:** an address may only be used once. Turnouts, signals and uncouplers share the accessory address range; contact tracks use the separate feedback contact numbers. Entering an address that is already taken is refused with a message naming the element that uses it, and the server refuses to save duplicates. *Check* lists all conflicts and elements without address — click an entry to select the elements. Conflicting elements are outlined in red.
+
 Track geometry: elements connect at the edge midpoints of a square and, for 45° track, at its corners. Turnouts branch off at 45° into a corner, the crossover switch crosses a straight track with a 45° diagonal. Use *Diagonal* and the 45° curves to continue a branch: two 45° curves (via a corner) make a 90° turn.
 
 - **Add:** pick an element in the element list, then click a square. Clicking the active element again (or pressing `R`) rotates it by 90°.
-- **Move:** choose *Select / move*, then drag an element to another free square.
-- **Remove:** select an element and press `Del` / *Remove*, or use the *Eraser* tool.
-- **Rotate:** select an element and press `R` / *Rotate*.
+- **Select:** choose *Select / move* and click an element. `Shift`/`Ctrl`/`⌘`-click adds or removes elements; dragging on an empty area draws a selection frame; `Ctrl`/`⌘`+`A` selects everything.
+- **Move:** drag a selected element — all selected elements move together — or nudge the selection with the arrow keys. Moves that would overlap other elements or leave the grid are refused.
+- **Remove:** select elements and press `Del` / *Remove*, or use the *Eraser* tool.
+- **Rotate:** select elements and press `R` / *Rotate*; a group rotates as a whole by 90°.
+- **Zoom:** `−` / `+` / *Fit* in the toolbar, the keys `-` `+` `0`, or `Ctrl`/`⌘` + mouse wheel. *Fit* scales the layout to the screen and follows window size changes. The zoom is remembered per browser.
 - **Grid size:** change *Cols* / *Rows* (4–60 × 4–40). *Clear all* asks for a second click.
 
 The layout is saved automatically in `data/settings.json`.

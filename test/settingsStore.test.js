@@ -133,3 +133,24 @@ test('R2 curve occupies three squares of its 2×2 block and leaves the inner cor
   });
   assert.throws(() => store.setLayout({ cols: 6, rows: 6, tiles: [{ type: 'curve-r2', x: 5, y: 0 }] }), /outside/);
 });
+
+test('rejects duplicate decoder addresses within an address space', () => {
+  const store = new SettingsStore(tmpFile());
+  const base = { cols: 6, rows: 6 };
+  // Turnout and signal share the accessory range.
+  assert.throws(() => store.setLayout({ ...base, tiles: [
+    { type: 'turnout-left', x: 0, y: 0, addresses: [5] },
+    { type: 'signal', x: 1, y: 0, addresses: [5] }
+  ] }), /Duplicate decoder addresses: accessory address 5/);
+  // Both drives of one crossover switch.
+  assert.throws(() => store.setLayout({ ...base, tiles: [
+    { type: 'double-slip', x: 0, y: 0, addresses: [9, 9] }
+  ] }), /Duplicate/);
+  // Contact numbers are a separate range, so contact 5 next to turnout 5 is fine.
+  store.setLayout({ ...base, tiles: [
+    { type: 'turnout-left', x: 0, y: 0, addresses: [5] },
+    { type: 'contact', x: 1, y: 0, addresses: [5] },
+    { type: 'uncoupler', x: 2, y: 0, addresses: [null] },
+    { type: 'signal', x: 3, y: 0, addresses: [null] }
+  ] });
+});

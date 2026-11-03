@@ -217,7 +217,16 @@ class SettingsStore {
   }
 
   setLayout(layout) {
-    this.data.layout = sanitizeLayout(layout);
+    const sanitized = sanitizeLayout(layout);
+    // Checked on save only, so a layout saved by an older version still loads and can be fixed.
+    const conflicts = TrackCatalog.findAddressConflicts(sanitized.tiles);
+    if (conflicts.length > 0) {
+      const list = conflicts
+        .map((c) => `${TrackCatalog.ADDRESS_SPACES[c.space]} ${c.address} (${c.uses.length}×)`)
+        .join(', ');
+      throw new Error(`Duplicate decoder addresses: ${list}.`);
+    }
+    this.data.layout = sanitized;
     this.save();
     return this.getLayout();
   }

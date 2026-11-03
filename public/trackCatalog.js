@@ -34,8 +34,33 @@
     crossing: {},
     buffer: {},
     signal: { states: ['stop', 'go'], addresses: ['Signal address'] },
-    contact: { addresses: ['Contact no. (feedback)'] },
+    contact: { addresses: ['Contact no. (feedback)'], addressSpace: 'feedback' },
     uncoupler: { addresses: ['Uncoupler address'], momentary: true }
+  };
+
+  // Turnouts, signals and uncouplers share the accessory address range of the command
+  // station; feedback contacts are numbered separately.
+  const ADDRESS_SPACES = { accessory: 'accessory address', feedback: 'contact no.' };
+  const addressSpace = (type) => (TYPES[type] && TYPES[type].addressSpace) || 'accessory';
+
+  // Returns every address that is used more than once within its address space,
+  // including two drives of the same element: [{ space, address, uses: [{ id, slot }] }].
+  const findAddressConflicts = (tiles) => {
+    const uses = new Map();
+    tiles.forEach((tile) => {
+      (tile.addresses || []).forEach((address, slot) => {
+        if (address === null || address === undefined || address === '') return;
+        const key = `${addressSpace(tile.type)}:${Number(address)}`;
+        if (!uses.has(key)) uses.set(key, []);
+        uses.get(key).push({ id: tile.id, slot });
+      });
+    });
+    return [...uses.entries()]
+      .filter(([, list]) => list.length > 1)
+      .map(([key, list]) => {
+        const [space, address] = key.split(':');
+        return { space, address: Number(address), uses: list };
+      });
   };
 
   const DEFAULT_FOOTPRINT = { size: 1, cells: [[0, 0]] };
@@ -66,6 +91,9 @@
     statesOf: (type) => (TYPES[type] && TYPES[type].states) || null,
     addressSlots: (type) => (TYPES[type] && TYPES[type].addresses) || [],
     footprint,
-    cellsOf
+    cellsOf,
+    ADDRESS_SPACES,
+    addressSpace,
+    findAddressConflicts
   };
 });

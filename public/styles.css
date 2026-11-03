@@ -681,6 +681,10 @@ kbd {
   margin-left: auto;
 }
 
+body[data-mode='run'] .zoom-group {
+  margin-left: auto;
+}
+
 .toolbar-group {
   display: flex;
   flex-wrap: wrap;
@@ -705,7 +709,7 @@ kbd {
   width: fit-content;
   max-width: 100%;
   overflow: auto;
-  max-height: calc(100vh - 230px);
+  max-height: calc(100vh - 230px); /* refined in layout.js */
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: #0e151c;
@@ -861,6 +865,7 @@ kbd {
 
 /* Properties bar (edit mode, selected element) */
 .props-bar {
+  min-height: 52px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -897,6 +902,110 @@ kbd {
 .props-note {
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+/* Selection frame, conflicts, issues, zoom */
+.marquee {
+  fill: rgba(79, 179, 255, 0.1);
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-dasharray: 14 8;
+}
+
+.tile.conflict .tile-bg {
+  fill: var(--danger-soft);
+  stroke: var(--danger);
+  stroke-width: 6;
+}
+
+.tile.conflict .addr-badge rect {
+  stroke: var(--danger);
+  fill: #3a1212;
+}
+
+.check-button.has-conflicts {
+  color: var(--danger);
+  border-color: rgba(255, 93, 93, 0.5);
+  background: var(--danger-soft);
+}
+
+.issues-panel {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  max-height: 180px;
+  overflow: auto;
+}
+
+.issues-panel[hidden] {
+  display: none;
+}
+
+.issues-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.issue {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+button.issue:hover {
+  background: var(--surface-3);
+}
+
+.issue.conflict {
+  color: var(--danger);
+}
+
+.issue.conflict::before {
+  content: '⚠ ';
+}
+
+.issue.missing {
+  color: var(--warn);
+}
+
+.issue.missing::before {
+  content: '? ';
+  font-weight: 700;
+}
+
+.issue.ok {
+  color: var(--ok);
+}
+
+.zoom-group {
+  gap: 4px;
+}
+
+.zoom-group .icon-text {
+  width: 34px;
+  padding-inline: 0;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.zoom-label {
+  min-width: 48px;
+  text-align: center;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+#zoomFit[aria-pressed='true'] {
+  border-color: rgba(79, 179, 255, 0.5);
+  color: var(--accent);
 }
 
 /* Edit / run mode */
