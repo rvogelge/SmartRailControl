@@ -6,7 +6,23 @@ const DEFAULT_FILE = path.join(__dirname, 'data', 'settings.json');
 const MAX_SPEED = 126;
 const MAX_CONTROLLERS = 50;
 
-const TRACK_TYPES = ['straight', 'curve', 'turnout-left', 'turnout-right'];
+const TRACK_TYPES = [
+  'straight',
+  'curve',
+  'turnout-left',
+  'turnout-right',
+  'double-slip',
+  'crossing',
+  'buffer',
+  'signal'
+];
+// Switchable elements and their states; the first entry is the default.
+const ELEMENT_STATES = {
+  'turnout-left': ['straight', 'diverging'],
+  'turnout-right': ['straight', 'diverging'],
+  'double-slip': ['straight', 'turn'],
+  signal: ['stop', 'go']
+};
 const ROTATIONS = [0, 90, 180, 270];
 const GRID_LIMITS = { minCols: 4, maxCols: 60, minRows: 4, maxRows: 40 };
 const DEFAULT_LAYOUT = { cols: 20, rows: 12, tiles: [] };
@@ -51,13 +67,18 @@ const sanitizeLayout = (input) => {
     ids.add(id);
 
     const rotation = toInt(tile.rotation);
-    return {
+    const sanitized = {
       id,
       type: tile.type,
       x,
       y,
       rotation: ROTATIONS.includes(rotation) ? rotation : 0
     };
+    const states = ELEMENT_STATES[tile.type];
+    if (states) {
+      sanitized.state = states.includes(tile.state) ? tile.state : states[0];
+    }
+    return sanitized;
   });
 
   return { cols, rows, tiles: sanitizedTiles };
@@ -196,6 +217,7 @@ class SettingsStore {
 }
 
 SettingsStore.TRACK_TYPES = TRACK_TYPES;
+SettingsStore.ELEMENT_STATES = ELEMENT_STATES;
 SettingsStore.GRID_LIMITS = GRID_LIMITS;
 
 module.exports = SettingsStore;

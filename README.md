@@ -72,7 +72,13 @@ Moving the slider or changing the direction sends a command right away. Selectin
 
 Open the **Layout** tab. Every element fills exactly one grid square and snaps to the grid.
 
-- **Add:** pick Straight, Curve, Turnout left or Turnout right in the element list, then click a square. Clicking the active element again (or pressing `R`) rotates it by 90°.
+The page has two modes, switched with **Edit / Run** in the toolbar (or the `E` key). `layout.html#edit` and `layout.html#run` open a mode directly.
+
+**Run mode** shows only the layout. Click a turnout, crossover switch or signal to change it: turnouts switch between straight and diverging, the crossover switch between straight and turning routes, and signals between red and green. The active route is drawn bright, the other route dimmed. States are saved with the layout.
+
+**Edit mode** — elements: Straight, Curve, Turnout left, Turnout right, Crossover switch (double slip), Crossing, Buffer stop, Signal.
+
+- **Add:** pick an element in the element list, then click a square. Clicking the active element again (or pressing `R`) rotates it by 90°.
 - **Move:** choose *Select / move*, then drag an element to another free square.
 - **Remove:** select an element and press `Del` / *Remove*, or use the *Eraser* tool.
 - **Rotate:** select an element and press `R` / *Rotate*.

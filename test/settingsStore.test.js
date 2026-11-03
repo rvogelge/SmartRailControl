@@ -58,7 +58,7 @@ test('stores a track layout and validates elements', () => {
   });
   const reloaded = new SettingsStore(file).getLayout();
   assert.equal(reloaded.cols, 10);
-  assert.deepEqual(reloaded.tiles[1], { id: 't2', type: 'turnout-left', x: 9, y: 5, rotation: 0 });
+  assert.deepEqual(reloaded.tiles[1], { id: 't2', type: 'turnout-left', x: 9, y: 5, rotation: 0, state: 'straight' });
 
   assert.throws(() => store.setLayout({ cols: 10, rows: 6, tiles: [{ type: 'bridge', x: 0, y: 0 }] }));
   assert.throws(() => store.setLayout({ cols: 10, rows: 6, tiles: [{ type: 'curve', x: 10, y: 0 }] }));
@@ -66,4 +66,21 @@ test('stores a track layout and validates elements', () => {
     cols: 10, rows: 6, tiles: [{ type: 'curve', x: 1, y: 1 }, { type: 'straight', x: 1, y: 1 }]
   }));
   assert.throws(() => store.setLayout({ cols: 2, rows: 6, tiles: [] }));
+});
+
+test('keeps switch and signal states, defaults invalid ones', () => {
+  const store = new SettingsStore(tmpFile());
+  const { tiles } = store.setLayout({
+    cols: 6,
+    rows: 6,
+    tiles: [
+      { id: 'a', type: 'turnout-right', x: 0, y: 0, state: 'diverging' },
+      { id: 'b', type: 'double-slip', x: 1, y: 0, state: 'bogus' },
+      { id: 'c', type: 'signal', x: 2, y: 0, state: 'go' },
+      { id: 'd', type: 'straight', x: 3, y: 0, state: 'go' },
+      { id: 'e', type: 'buffer', x: 4, y: 0 },
+      { id: 'f', type: 'crossing', x: 5, y: 0 }
+    ]
+  });
+  assert.deepEqual(tiles.map((t) => t.state), ['diverging', 'straight', 'go', undefined, undefined, undefined]);
 });

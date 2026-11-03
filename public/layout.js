@@ -4,26 +4,66 @@ const CELL_PX = 56; // on-screen size of one square
 
 // Each element is drawn in a 100×100 square. Edge midpoints are the connection
 // points: west (0,50), east (100,50), north (50,0), south (50,100).
+//
+// Switchable elements define `routes` (one set of paths per state, first state is
+// the default). In each state the active route is drawn bright and the others dimmed.
+const ARC_WS = 'M0 50 A50 50 0 0 1 50 100'; // west → south
+const ARC_WN = 'M0 50 A50 50 0 0 0 50 0'; // west → north
+const ARC_NE = 'M50 0 A50 50 0 0 0 100 50'; // north → east
+const STRAIGHT_WE = 'M0 50 H100';
+const STRAIGHT_NS = 'M50 0 V100';
+
 const ELEMENTS = {
   straight: {
     label: 'Straight',
-    paths: ['M0 50 H100']
+    paths: [STRAIGHT_WE]
   },
   curve: {
     label: 'Curve',
-    paths: ['M0 50 A50 50 0 0 1 50 100']
+    paths: [ARC_WS]
   },
   'turnout-left': {
     label: 'Turnout left',
-    paths: ['M0 50 H100', 'M0 50 A50 50 0 0 0 50 0'],
+    routes: { straight: [STRAIGHT_WE], diverging: [ARC_WN] },
+    stateLabels: { straight: 'straight', diverging: 'diverging' },
     switchPoint: true
   },
   'turnout-right': {
     label: 'Turnout right',
-    paths: ['M0 50 H100', 'M0 50 A50 50 0 0 1 50 100'],
+    routes: { straight: [STRAIGHT_WE], diverging: [ARC_WS] },
+    stateLabels: { straight: 'straight', diverging: 'diverging' },
     switchPoint: true
+  },
+  'double-slip': {
+    label: 'Crossover switch',
+    routes: { straight: [STRAIGHT_WE, STRAIGHT_NS], turn: [ARC_WS, ARC_NE] },
+    stateLabels: { straight: 'straight', turn: 'turning' },
+    switchPoint: true
+  },
+  crossing: {
+    label: 'Crossing',
+    paths: [STRAIGHT_WE, STRAIGHT_NS]
+  },
+  buffer: {
+    label: 'Buffer stop',
+    paths: ['M0 50 H62'],
+    extra: 'buffer'
+  },
+  signal: {
+    label: 'Signal',
+    paths: [STRAIGHT_WE],
+    states: ['stop', 'go'],
+    stateLabels: { stop: 'stop (red)', go: 'go (green)' },
+    extra: 'signal'
   }
 };
+
+const statesOf = (type) => {
+  const def = ELEMENTS[type];
+  return def.routes ? Object.keys(def.routes) : def.states || null;
+};
+const isSwitchable = (type) => Boolean(statesOf(type));
+const defaultState = (type) => (statesOf(type) ? statesOf(type)[0] : undefined);
 
 const TOOLS = [
   { id: 'select', label: 'Select / move', icon: 'select' },
@@ -44,10 +84,12 @@ const ui = {
   cols: $('colsInput'),
   rows: $('rowsInput'),
   status: $('statusLine'),
-  saveState: $('saveState')
+  saveState: $('saveState'),
+  modeButtons: document.querySelectorAll('[data-mode]')
 };
 
 const state = {
+  mode: 'edit', // 'edit' | 'run'
   cols: 20,
   rows: 12,
   tiles: [],
@@ -113,13 +155,36 @@ const cellFromEvent = (event) => {
 };
 
 // Draws one track element into a <g> covering a single 100×100 square.
-const drawElement = (type, { rotation = 0, className = '' } = {}) => {
+const drawElement = (type, { rotation = 0, state, className = '' } = {}) => {
   const def = ELEMENTS[type];
+  const current = state || defaultState(type);
   const group = svg('g', { class: `track ${className}`.trim() });
   const inner = svg('g', { transform: `rotate(${rotation} 50 50)` });
-  def.paths.forEach((d) => inner.append(svg('path', { d, class: 'ballast' })));
-  def.paths.forEach((d) => inner.append(svg('path', { d, class: 'rail' })));
+
+  if (def.routes) {
+    const all = Object.values(def.routes).flat();
+    all.forEach((d) => inner.append(svg('path', { d, class: 'ballast' })));
+    // Inactive routes first so the active route is drawn on top.
+    Object.entries(def.routes)
+      .sort(([a], [b]) => (a === current) - (b === current))
+      .forEach(([name, paths]) => {
+        paths.forEach((d) => inner.append(svg('path', { d, class: name === current ? 'rail' : 'rail inactive' })));
+      });
+  } else {
+    def.paths.forEach((d) => inner.append(svg('path', { d, class: 'ballast' })));
+    def.paths.forEach((d) => inner.append(svg('path', { d, class: 'rail' })));
+  }
+
   if (def.switchPoint) inner.append(svg('circle', { cx: 6, cy: 50, r: 7, class: 'switch-point' }));
+
+  if (def.extra === 'buffer') {
+    inner.append(svg('rect', { x: 60, y: 26, width: 14, height: 48, rx: 3, class: 'bumper' }));
+  } else if (def.extra === 'signal') {
+    // Mast beside the track, lamp facing along the direction of travel (west → east).
+    inner.append(svg('path', { d: 'M28 40 V18 H50', class: 'signal-mast' }));
+    inner.append(svg('circle', { cx: 64, cy: 18, r: 13, class: `signal-lamp ${current}` }));
+  }
+
   group.append(inner);
   return group;
 };
@@ -148,7 +213,8 @@ const renderTiles = () => {
         class: `tile${tile.id === state.selectedId ? ' selected' : ''}${isDragging ? ' dragging' : ''}`
       });
       g.append(svg('rect', { width: CELL, height: CELL, class: 'tile-bg' }));
-      g.append(drawElement(tile.type, { rotation: tile.rotation }));
+      g.append(drawElement(tile.type, { rotation: tile.rotation, state: tile.state }));
+      if (state.mode === 'run' && isSwitchable(tile.type)) g.classList.add('switchable');
       return g;
     })
   );
@@ -159,14 +225,26 @@ const renderOverlay = () => {
   const cell = state.drag ? state.drag.cell : state.hoverCell;
   if (!cell) return;
 
+  if (state.mode === 'run') {
+    const tile = tileAt(cell.x, cell.y);
+    if (tile && isSwitchable(tile.type)) {
+      const g = svg('g', { transform: `translate(${cell.x * CELL} ${cell.y * CELL})` });
+      g.append(svg('rect', { width: CELL, height: CELL, class: 'hover-cell run' }));
+      ui.overlay.append(g);
+    }
+    return;
+  }
+
   let type = null;
   let rotation = 0;
+  let ghostState;
   let blocked = false;
 
   if (state.drag && state.drag.moved) {
     const tile = state.tiles.find((t) => t.id === state.drag.id);
     type = tile.type;
     rotation = tile.rotation;
+    ghostState = tile.state;
     const occupant = tileAt(cell.x, cell.y);
     blocked = Boolean(occupant && occupant.id !== tile.id);
   } else if (ELEMENTS[state.tool]) {
@@ -177,7 +255,7 @@ const renderOverlay = () => {
   const g = svg('g', { transform: `translate(${cell.x * CELL} ${cell.y * CELL})` });
   const toolClass = state.tool === 'eraser' ? ' erase' : '';
   g.append(svg('rect', { width: CELL, height: CELL, class: `hover-cell${blocked ? ' blocked' : ''}${toolClass}` }));
-  if (type) g.append(drawElement(type, { rotation, className: 'ghost-track' }));
+  if (type) g.append(drawElement(type, { rotation, state: ghostState, className: 'ghost-track' }));
   ui.overlay.append(g);
 };
 
@@ -212,6 +290,14 @@ const renderPalette = () => {
   );
 };
 
+const renderMode = () => {
+  document.body.dataset.mode = state.mode;
+  ui.board.dataset.mode = state.mode;
+  ui.modeButtons.forEach((button) => {
+    button.setAttribute('aria-checked', String(button.dataset.mode === state.mode));
+  });
+};
+
 const renderToolbar = () => {
   const hasSelection = Boolean(selected());
   ui.rotate.disabled = !(hasSelection || ELEMENTS[state.tool]);
@@ -219,6 +305,7 @@ const renderToolbar = () => {
 };
 
 const render = () => {
+  renderMode();
   renderBoard();
   renderTiles();
   renderOverlay();
@@ -238,10 +325,41 @@ const setTool = (tool) => {
   else setStatus('Select: click an element to select it, drag to move it.');
 };
 
+const MODE_KEY = 'birdrail.layoutMode';
+
+const setMode = (mode) => {
+  state.mode = mode === 'run' ? 'run' : 'edit';
+  state.selectedId = null;
+  state.drag = null;
+  try {
+    localStorage.setItem(MODE_KEY, state.mode);
+  } catch (_error) {
+    // Storage unavailable: mode simply is not remembered.
+  }
+  render();
+  if (state.mode === 'run') {
+    setStatus('Run mode: click a turnout, crossover switch or signal to change it.');
+  } else {
+    setTool(state.tool);
+  }
+};
+
+const toggleState = (tile) => {
+  const states = statesOf(tile.type);
+  const next = states[(states.indexOf(tile.state) + 1) % states.length];
+  tile.state = next;
+  scheduleSave();
+  render();
+  const def = ELEMENTS[tile.type];
+  setStatus(`${def.label} at column ${tile.x + 1}, row ${tile.y + 1}: ${def.stateLabels[next]}.`, 'ok');
+};
+
 const placeTile = (cell) => {
   const existing = tileAt(cell.x, cell.y);
   if (existing) state.tiles = state.tiles.filter((t) => t !== existing);
-  state.tiles.push({ id: newId(), type: state.tool, x: cell.x, y: cell.y, rotation: state.placeRotation });
+  const tile = { id: newId(), type: state.tool, x: cell.x, y: cell.y, rotation: state.placeRotation };
+  if (isSwitchable(state.tool)) tile.state = defaultState(state.tool);
+  state.tiles.push(tile);
   scheduleSave();
 };
 
@@ -291,6 +409,11 @@ ui.board.addEventListener('pointerdown', (event) => {
   const cell = cellFromEvent(event);
   if (!cell) return;
   const tile = tileAt(cell.x, cell.y);
+
+  if (state.mode === 'run') {
+    if (tile && isSwitchable(tile.type)) toggleState(tile);
+    return;
+  }
 
   if (ELEMENTS[state.tool]) {
     placeTile(cell);
@@ -394,8 +517,17 @@ const resizeGrid = () => {
 ui.cols.addEventListener('change', resizeGrid);
 ui.rows.addEventListener('change', resizeGrid);
 
+ui.modeButtons.forEach((button) => {
+  button.addEventListener('click', () => setMode(button.dataset.mode));
+});
+
 document.addEventListener('keydown', (event) => {
   if (event.target.matches('input, select, textarea')) return;
+  if (event.key === 'e' || event.key === 'E') {
+    setMode(state.mode === 'edit' ? 'run' : 'edit');
+    return;
+  }
+  if (state.mode === 'run') return;
   if (event.key === 'r' || event.key === 'R') {
     rotate();
   } else if (event.key === 'Delete' || event.key === 'Backspace') {
@@ -424,7 +556,16 @@ const init = async () => {
     setStatus(`Could not load layout: ${error.message}`, 'error');
   }
   ui.board.dataset.tool = state.tool;
-  render();
+  let savedMode = null;
+  try {
+    savedMode = localStorage.getItem(MODE_KEY);
+  } catch (_error) {
+    savedMode = null;
+  }
+  // URL hash (#edit / #run) wins; otherwise the last used mode; otherwise run mode
+  // when a layout already exists.
+  const hashMode = ['#edit', '#run'].includes(location.hash) ? location.hash.slice(1) : null;
+  setMode(hashMode || savedMode || (state.tiles.length > 0 ? 'run' : 'edit'));
 };
 
 init();

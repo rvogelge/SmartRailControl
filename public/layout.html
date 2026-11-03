@@ -34,17 +34,21 @@
         <ul id="palette" class="palette" role="listbox" aria-label="Select element"></ul>
         <p class="hint">
           Pick an element, then click a square to place it.<br />
-          <kbd>R</kbd> rotate · <kbd>Del</kbd> remove · <kbd>Esc</kbd> select tool
+          <kbd>R</kbd> rotate · <kbd>Del</kbd> remove · <kbd>Esc</kbd> select tool · <kbd>E</kbd> edit/run
         </p>
       </aside>
 
       <section class="card board-card" aria-label="Layout pane">
         <div class="toolbar">
-          <div class="toolbar-group">
+          <div class="segmented mode-switch" role="radiogroup" aria-label="Mode">
+            <button type="button" class="segment" data-mode="edit" role="radio" aria-checked="true" title="Edit layout (E)">✎ Edit</button>
+            <button type="button" class="segment" data-mode="run" role="radio" aria-checked="false" title="Run mode (E)">▶ Run</button>
+          </div>
+          <div class="toolbar-group edit-only">
             <button type="button" id="rotateButton" class="ghost small" title="Rotate (R)">⟳ Rotate</button>
             <button type="button" id="deleteButton" class="ghost small danger-text" title="Remove (Del)">Remove</button>
           </div>
-          <div class="toolbar-group">
+          <div class="toolbar-group edit-only">
             <label class="grid-size">
               <span>Cols</span>
               <input id="colsInput" type="number" min="4" max="60" />

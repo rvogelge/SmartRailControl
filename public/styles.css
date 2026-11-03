@@ -660,6 +660,7 @@ kbd {
 .board-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: 14px;
   min-width: 0;
 }
@@ -667,8 +668,12 @@ kbd {
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 10px;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.toolbar > .toolbar-group:last-child {
+  margin-left: auto;
 }
 
 .toolbar-group {
@@ -776,6 +781,74 @@ kbd {
 
 .ghost-track {
   opacity: 0.55;
+}
+
+.track .rail.inactive {
+  stroke: #5b6b7b;
+  stroke-width: 7;
+}
+
+.track .bumper {
+  fill: var(--danger);
+}
+
+.track .signal-mast {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.track .signal-lamp {
+  stroke: #0b1117;
+  stroke-width: 4;
+}
+
+.track .signal-lamp.stop {
+  fill: var(--danger);
+}
+
+.track .signal-lamp.go {
+  fill: var(--ok);
+}
+
+/* Edit / run mode */
+.mode-switch {
+  grid-template-columns: auto auto;
+  align-self: center;
+  padding: 3px;
+}
+
+.mode-switch .segment {
+  padding: 6px 14px;
+  font-size: 0.88rem;
+}
+
+body[data-mode='run'] .palette-card,
+body[data-mode='run'] .edit-only {
+  display: none;
+}
+
+body[data-mode='run'] .layout-editor {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.board[data-mode='run'] {
+  cursor: default;
+}
+
+.board[data-mode='run'] .tile {
+  cursor: default;
+}
+
+.board[data-mode='run'] .tile.switchable {
+  cursor: pointer;
+}
+
+.hover-cell.run {
+  stroke-dasharray: none;
+  fill: rgba(79, 179, 255, 0.1);
 }
 
 /* Small screens: controller list becomes a horizontal strip */
