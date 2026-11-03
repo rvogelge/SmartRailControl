@@ -44,7 +44,7 @@ If the adapter is not exposed as `/dev/ttyUSB0`, set the port by environment var
 SERIAL_PORT=/dev/ttyAMA0 npm start
 ```
 
-The app is configured for a LocoNet-style serial interface and uses a 57600 baud serial connection. This matches the setup where the USB adapter is connected to the Intellibox serial side rather than sending raw DCC packets directly.
+The app is configured for a LocoNet-style serial interface and defaults to a 57600 baud serial connection. This matches the setup where the USB adapter is connected to the Intellibox serial side rather than sending raw DCC packets directly. If a non-standard adapter uses a different rate, set `SERIAL_BAUD_RATE` before starting the app.
 
 ## App behavior
 

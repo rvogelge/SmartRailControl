@@ -1,13 +1,28 @@
 const { SerialPort } = require('serialport');
 
+const DEFAULT_BAUD_RATE = 57600;
+
 class SerialService {
-  constructor(portName, baudRate = Number(process.env.SERIAL_BAUD_RATE || 19200)) {
+  constructor(portName, baudRate = Number(process.env.SERIAL_BAUD_RATE || DEFAULT_BAUD_RATE)) {
     this.portName = portName || process.env.SERIAL_PORT || '/dev/ttyUSB0';
-    this.baudRate = Number.isInteger(baudRate) ? Number(baudRate) : 19200;
+    this.baudRate = Number.isInteger(baudRate) ? Number(baudRate) : DEFAULT_BAUD_RATE;
     this.connection = null;
     this.connected = false;
     this.lastPacket = [];
+    this.lastReceivedPacket = [];
     this.connect();
+  }
+
+  formatPacketHex(packet) {
+    const bytes = Array.isArray(packet) ? packet : Array.from(packet || []);
+    return bytes.map((byte) => `0x${Number(byte).toString(16).padStart(2, '0').toUpperCase()}`).join(' ');
+  }
+
+  logCommunication(direction, packet, metadata = {}) {
+    const message = this.formatPacketHex(packet);
+    const info = Object.keys(metadata).length > 0 ? ` ${JSON.stringify(metadata)}` : '';
+    const label = direction === 'rx' ? '[Intellibox RX]' : direction === 'tx' ? '[Intellibox TX]' : `[${direction}]`;
+    console.log(`${label} ${new Date().toISOString()} ${message}${info}`);
   }
 
   async listPorts() {
@@ -46,6 +61,12 @@ class SerialService {
         console.log(`Connected to serial interface on ${this.portName} @ ${this.baudRate} baud`);
       });
 
+      this.connection.on('data', (chunk) => {
+        const bytes = Array.from(chunk);
+        this.lastReceivedPacket = bytes;
+        this.logCommunication('rx', bytes, { length: bytes.length });
+      });
+
       this.connection.on('close', () => {
         this.connected = false;
         console.log(`Serial interface closed on ${this.portName}`);
@@ -53,7 +74,7 @@ class SerialService {
 
       this.connection.on('error', (error) => {
         this.connected = false;
-        console.error(`Serial error on ${this.portName}: ${error.message}`);
+        console.error(`[Intellibox ERROR] ${this.portName}: ${error.message}`);
       });
     } catch (error) {
       console.error(`Unable to open serial port ${this.portName}: ${error.message}`);
@@ -67,7 +88,8 @@ class SerialService {
       connected: this.connected,
       port: this.portName,
       baudRate: this.baudRate,
-      lastPacket: this.lastPacket
+      lastPacket: this.lastPacket,
+      lastReceivedPacket: this.lastReceivedPacket
     };
   }
 
@@ -95,6 +117,12 @@ class SerialService {
     });
 
     const packetHex = packet.map((byte) => `0x${byte.toString(16).padStart(2, '0').toUpperCase()}`);
+    this.logCommunication('tx', packet, {
+      decoderId,
+      speed: stop ? 0 : Math.max(0, Math.min(127, Number(speed) || 0)),
+      direction,
+      stop
+    });
 
     if (!this.connection || !this.connection.isOpen) {
       return {
@@ -106,7 +134,7 @@ class SerialService {
 
     this.connection.write(Buffer.from(packet), (error) => {
       if (error) {
-        console.error('Failed to write packet:', error.message);
+        console.error('[Intellibox TX ERROR]', error.message);
       }
     });
 

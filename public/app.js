@@ -46,14 +46,14 @@ const loadSerialConfig = async () => {
     const portsData = await portsResponse.json();
     const statusData = await statusResponse.json();
     const currentPort = (statusData.serial && statusData.serial.port) || '/dev/ttyUSB0';
-    const currentBaud = String((statusData.serial && statusData.serial.baudRate) || 19200);
+    const currentBaud = String((statusData.serial && statusData.serial.baudRate) || 57600);
 
     populateSerialPorts(portsData.ports, currentPort);
     baudRateSelect.value = currentBaud;
     updateStatus(Boolean(statusData.serial && statusData.serial.connected));
   } catch (_error) {
     populateSerialPorts([], '/dev/ttyUSB0');
-    baudRateSelect.value = '19200';
+    baudRateSelect.value = '57600';
     updateStatus(false);
   }
 };

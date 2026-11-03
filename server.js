@@ -8,7 +8,7 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const serialService = new SerialService(
   process.env.SERIAL_PORT || '/dev/ttyUSB0',
-  Number(process.env.SERIAL_BAUD_RATE || 19200)
+  Number(process.env.SERIAL_BAUD_RATE || 57600)
 );
 
 app.use(express.json());
@@ -33,7 +33,7 @@ app.get('/api/serial/ports', async (_req, res) => {
 app.post('/api/config', (req, res) => {
   try {
     const portName = req.body.portName || serialService.portName;
-    const baudRate = Number(req.body.baudRate || serialService.baudRate || 19200);
+    const baudRate = Number(req.body.baudRate || serialService.baudRate || 57600);
 
     if (!portName) {
       return res.status(400).json({ error: 'A serial port is required.' });
