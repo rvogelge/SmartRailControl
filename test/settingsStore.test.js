@@ -103,12 +103,12 @@ test('stores decoder addresses per element and validates them', () => {
     rows: 6,
     tiles: [
       { id: 'a', type: 'turnout-right', x: 0, y: 0, addresses: [12] },
-      { id: 'b', type: 'double-slip', x: 1, y: 0, addresses: ['7', null] },
+      { id: 'b', type: 'double-slip', x: 1, y: 0, addresses: ['7', 8] },
       { id: 'c', type: 'contact', x: 2, y: 0, addresses: [101, 999] },
       { id: 'd', type: 'straight', x: 3, y: 0, addresses: [5] }
     ]
   });
-  assert.deepEqual(tiles.map((t) => t.addresses), [[12], [7, null], [101], undefined]);
+  assert.deepEqual(tiles.map((t) => t.addresses), [[12], [7], [101], undefined]);
   assert.throws(() => store.setLayout({ cols: 6, rows: 6, tiles: [{ type: 'signal', x: 0, y: 0, addresses: [0] }] }));
   assert.throws(() => store.setLayout({ cols: 6, rows: 6, tiles: [{ type: 'signal', x: 0, y: 0, addresses: [2049] }] }));
 });
@@ -142,9 +142,9 @@ test('rejects duplicate decoder addresses within an address space', () => {
     { type: 'turnout-left', x: 0, y: 0, addresses: [5] },
     { type: 'signal', x: 1, y: 0, addresses: [5] }
   ] }), /Duplicate decoder addresses: accessory address 5/);
-  // Both drives of one crossover switch.
+  // Both drives of one three-way turnout.
   assert.throws(() => store.setLayout({ ...base, tiles: [
-    { type: 'double-slip', x: 0, y: 0, addresses: [9, 9] }
+    { type: 'turnout-3way', x: 0, y: 0, addresses: [9, 9] }
   ] }), /Duplicate/);
   // Contact numbers are a separate range, so contact 5 next to turnout 5 is fine.
   store.setLayout({ ...base, tiles: [
@@ -160,7 +160,7 @@ test('state commands: three-way turnout resets the other drive first', () => {
   assert.deepEqual(TrackCatalog.commandsFor('turnout-left', 'diverging'), [[0, 'red']]);
   assert.deepEqual(TrackCatalog.commandsFor('signal', 'go'), [[0, 'green']]);
   assert.deepEqual(TrackCatalog.commandsFor('turnout-3way', 'left'), [[1, 'green'], [0, 'red']]);
-  assert.deepEqual(TrackCatalog.commandsFor('double-slip', 'turn'), [[0, 'red'], [1, 'red']]);
+  assert.deepEqual(TrackCatalog.commandsFor('double-slip', 'turn'), [[0, 'red']]);
   assert.deepEqual(TrackCatalog.commandsFor('uncoupler', 'trigger'), [[0, 'green']]);
   assert.equal(TrackCatalog.commandsFor('contact', 'x'), null);
 });

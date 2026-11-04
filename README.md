@@ -80,7 +80,7 @@ The page has two modes, switched with **Edit / Run** in the toolbar (or the `E` 
 
 **Parallel curves:** *Curve 90° R2* has radius 150 and takes a 2×2 block, of which it uses three squares. Put a *Curve 90° R1* into the free inner square (same rotation) and the two curves run exactly one track apart — use this for parallel loops.
 
-**Decoder addresses:** every element with an action — turnouts, three-way turnout, crossover switch, signals, uncouplers and contact tracks — has decoder address fields (1–2048). Select the element in edit mode; the fields appear above the grid (double-click an element to jump there). Three-way turnouts and crossover switches have two drives, so they get two addresses. The address is shown as a badge on the element; `?` marks a missing address. For contact tracks the number is the feedback contact.
+**Decoder addresses:** every element with an action — turnouts, three-way turnout, crossover switch, signals, uncouplers and contact tracks — has decoder address fields (1–2048). Select the element in edit mode; the fields appear above the grid (double-click an element to jump there). Three-way turnouts have two drives, so they get two addresses; the crossover switch has only two states (straight / turning) and needs one address. The address is shown as a badge on the element; `?` marks a missing address. For contact tracks the number is the feedback contact.
 
 **Address check:** an address may only be used once. Turnouts, signals and uncouplers share the accessory address range; contact tracks use the separate feedback contact numbers. Entering an address that is already taken is refused with a message naming the element that uses it, and the server refuses to save duplicates. *Check* lists all conflicts and elements without address — click an entry to select the elements. Conflicting elements are outlined in red.
 
@@ -109,7 +109,7 @@ In run mode, switching a turnout, three-way turnout, crossover switch or signal,
 | Turnout left/right | straight → green, diverging → red |
 | Signal | go → green, stop → red |
 | Three-way turnout | straight → drive 1 green, drive 2 green · left → drive 2 green, then drive 1 red · right → drive 1 green, then drive 2 red |
-| Crossover switch | straight → both drives green · turning → both drives red |
+| Crossover switch | straight → green, turning → red |
 | Uncoupler | short pulse on green |
 
 The new state is saved even if the command could not be sent (no address, serial port not open); the status line then says *not sent* and why. Each command and the Intellibox reply are logged in the terminal (`[Intellibox TX]` / `[Intellibox RX]`). Contact tracks are inputs and send nothing.

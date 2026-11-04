@@ -47,8 +47,9 @@
     },
     'double-slip': {
       states: ['straight', 'turn'],
-      addresses: ['Drive 1', 'Drive 2'],
-      commands: { straight: [[0, 'green'], [1, 'green']], turn: [[0, 'red'], [1, 'red']] }
+      // Only two states, so both drives are wired to one decoder output.
+      addresses: ['Crossover address'],
+      commands: { straight: [[0, 'green']], turn: [[0, 'red']] }
     },
     'crossing-45': {},
     crossing: {},
