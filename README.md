@@ -117,8 +117,8 @@ Track geometry: elements connect at the edge midpoints of a square and, for 45°
 - **Move:** drag a selected element — all selected elements move together — or nudge the selection with the arrow keys. Moves that would overlap other elements or leave the grid are refused.
 - **Remove:** select elements and press `Del` / *Remove*, or use the *Eraser* tool.
 - **Rotate:** select elements and press `R` / *Rotate*; a group rotates as a whole by 90°.
-- **Zoom:** `−` / `+` / *Fit* in the toolbar, the keys `-` `+` `0`, or `Ctrl`/`⌘` + mouse wheel. *Fit* scales the layout to the screen and follows window size changes. The zoom is remembered per browser.
-- **Grid size:** change *Cols* / *Rows* (4–60 × 4–40). *Clear all* asks for a second click.
+- **Zoom:** `−` / `+` / *Fit* in the toolbar, the keys `-` `+` `0`, or `Ctrl`/`⌘` + mouse wheel. The grid always fills the layout pane: zooming out shows more squares, zooming in fewer and larger ones (the pane scrolls if the placed elements no longer fit). *Fit* zooms so that all placed elements fill the pane and follows window size changes. The zoom is remembered per browser.
+- **Grid size:** follows the zoom (see above); only the area the elements use is saved. *Clear all* asks for a second click.
 
 The layout is saved automatically in `data/settings.json`.
 

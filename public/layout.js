@@ -94,8 +94,6 @@ const ui = {
   issues: $('issuesPanel'),
   issuesList: $('issuesList'),
   clear: $('clearButton'),
-  cols: $('colsInput'),
-  rows: $('rowsInput'),
   zoomIn: $('zoomIn'),
   zoomOut: $('zoomOut'),
   zoomFit: $('zoomFit'),
@@ -165,7 +163,7 @@ const scheduleSave = () => {
       const response = await fetch('/api/layout', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cols: state.cols, rows: state.rows, tiles: state.tiles })
+        body: JSON.stringify({ ...extent(), tiles: state.tiles })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Save failed.');
@@ -192,6 +190,21 @@ const tileAt = (x, y) => state.tiles.find((t) => cellsOf(t).some((c) => sameCell
 const selectedTiles = () => state.tiles.filter((t) => state.selection.has(t.id));
 const singleSelected = () => (state.selection.size === 1 ? tileById([...state.selection][0]) : null);
 const inBounds = ([x, y]) => x >= 0 && y >= 0 && x < state.cols && y < state.rows;
+
+// Squares the placed elements need (at least the minimum grid of the server).
+const MIN_GRID = 4;
+const MAX_GRID = 250;
+const extent = () => {
+  let cols = MIN_GRID;
+  let rows = MIN_GRID;
+  state.tiles.forEach((tile) => {
+    cellsOf(tile).forEach(([x, y]) => {
+      cols = Math.max(cols, x + 1);
+      rows = Math.max(rows, y + 1);
+    });
+  });
+  return { cols, rows };
+};
 const where = (tile) => tr('lay.where', { x: tile.x + 1, y: tile.y + 1 });
 
 // Checks whether an element of `type` fits at anchor (x, y) with `rotation`.
@@ -334,19 +347,46 @@ const cellRects = (tile, className) =>
 
 /* ---------- Rendering ---------- */
 
+// Height left for the pane: from its top to the window bottom, minus what sits below it
+// (status line, card padding, page margin).
+const paneHeight = () => {
+  // Measured from the status line, not the card: in edit mode the card is stretched
+  // to the height of the element palette next to it.
+  const pane = ui.boardScroll.getBoundingClientRect();
+  const card = getComputedStyle(ui.boardCard);
+  const below =
+    ui.status.getBoundingClientRect().bottom -
+    pane.bottom +
+    parseFloat(card.paddingBottom) +
+    parseFloat(card.borderBottomWidth) +
+    parseFloat(getComputedStyle(ui.boardCard.parentElement).paddingBottom);
+  return Math.max(240, Math.floor(window.innerHeight - (pane.top + window.scrollY) - below));
+};
+
+// The grid fills the pane at the current zoom: zooming out shows more squares, zooming in
+// fewer. It never gets smaller than the placed elements need; then the pane scrolls.
+const updateGrid = () => {
+  ui.boardScroll.style.height = `${paneHeight()}px`;
+  const used = extent();
+  const visibleCols = Math.floor(ui.boardScroll.clientWidth / state.zoom);
+  const visibleRows = Math.floor(ui.boardScroll.clientHeight / state.zoom);
+  state.cols = Math.min(MAX_GRID, Math.max(used.cols, visibleCols));
+  state.rows = Math.min(MAX_GRID, Math.max(used.rows, visibleRows));
+};
+
 const renderBoard = () => {
-  const width = state.cols * CELL;
-  const height = state.rows * CELL;
+  updateGrid();
+  // The drawing reaches the pane edges: the last, partial square is shown but takes no
+  // elements (it is outside state.cols / state.rows).
+  const pxWidth = Math.max(Math.round(state.cols * state.zoom), ui.boardScroll.clientWidth);
+  const pxHeight = Math.max(Math.round(state.rows * state.zoom), ui.boardScroll.clientHeight);
+  const width = (pxWidth / state.zoom) * CELL;
+  const height = (pxHeight / state.zoom) * CELL;
   ui.board.setAttribute('viewBox', `0 0 ${width} ${height}`);
-  ui.board.setAttribute('width', Math.round(state.cols * state.zoom));
-  ui.board.setAttribute('height', Math.round(state.rows * state.zoom));
+  ui.board.setAttribute('width', pxWidth);
+  ui.board.setAttribute('height', pxHeight);
   ui.gridRect.setAttribute('width', width);
   ui.gridRect.setAttribute('height', height);
-  if (document.activeElement !== ui.cols) ui.cols.value = state.cols;
-  if (document.activeElement !== ui.rows) ui.rows.value = state.rows;
-  // The pane scrolls internally and uses the height left on screen (at least 240 px).
-  const top = ui.boardScroll.getBoundingClientRect().top + window.scrollY;
-  ui.boardScroll.style.maxHeight = `${Math.max(240, window.innerHeight - top - 64)}px`;
   ui.zoomLabel.textContent = `${Math.round((state.zoom / CELL_PX) * 100)}%`;
   ui.zoomFit.setAttribute('aria-pressed', String(state.zoomFit));
   ui.zoomIn.disabled = state.zoom >= ZOOM_MAX;
@@ -642,32 +682,15 @@ const render = () => {
 
 /* ---------- Zoom ---------- */
 
-// Width a vertical scroll bar takes in this browser (0 with overlay scroll bars, as on macOS).
-const scrollbarWidth = (() => {
-  let width = null;
-  return () => {
-    if (width === null) {
-      const probe = document.createElement('div');
-      probe.style.cssText = 'position:absolute;top:-999px;width:100px;height:100px;overflow:scroll';
-      document.body.append(probe);
-      width = probe.offsetWidth - probe.clientWidth;
-      probe.remove();
-    }
-    return width;
-  };
-})();
 
+// Fit: zoom so that all placed elements fill the pane (an empty layout gets the default size).
 const fitZoom = () => {
-  const cardStyle = getComputedStyle(ui.boardCard);
-  const availableWidth =
-    ui.boardCard.clientWidth - parseFloat(cardStyle.paddingLeft) - parseFloat(cardStyle.paddingRight) - 2;
-  const top = ui.boardScroll.getBoundingClientRect().top + window.scrollY;
-  const availableHeight = Math.max(240, window.innerHeight - top - 64); // room for the status line
-  // Fit uses the full width; a plan taller than the screen scrolls vertically in the pane.
-  // Leave room for that scroll bar so no horizontal scrolling is needed.
-  let zoom = Math.floor(availableWidth / state.cols);
-  if (zoom * state.rows > availableHeight) zoom = Math.floor((availableWidth - scrollbarWidth()) / state.cols);
-  return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom));
+  if (state.tiles.length === 0) return CELL_PX;
+  ui.boardScroll.style.height = `${paneHeight()}px`;
+  const used = extent();
+  const width = ui.boardScroll.clientWidth;
+  const height = ui.boardScroll.clientHeight;
+  return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.floor(Math.min(width / used.cols, height / used.rows))));
 };
 
 const setZoom = (zoom, { fit = false } = {}) => {
@@ -1129,32 +1152,6 @@ ui.clear.addEventListener('click', () => {
   setStatus(tr('lay.cleared'));
 });
 
-const resizeGrid = () => {
-  const cols = Number(ui.cols.value);
-  const rows = Number(ui.rows.value);
-  if (!(Number.isInteger(cols) && cols >= 4 && cols <= 60 && Number.isInteger(rows) && rows >= 4 && rows <= 40)) {
-    setStatus(tr('lay.gridRange'), 'error');
-    ui.cols.value = state.cols;
-    ui.rows.value = state.rows;
-    return;
-  }
-  const outside = state.tiles.filter((t) => cellsOf(t).some(([x, y]) => x >= cols || y >= rows));
-  if (outside.length > 0) {
-    setStatus(tr('lay.cannotShrink', { n: outside.length }), 'error');
-    ui.cols.value = state.cols;
-    ui.rows.value = state.rows;
-    return;
-  }
-  state.cols = cols;
-  state.rows = rows;
-  scheduleSave();
-  render();
-  if (state.zoomFit) setZoom(0, { fit: true });
-  setStatus(tr('lay.gridNow', { cols, rows }));
-};
-
-ui.cols.addEventListener('change', resizeGrid);
-ui.rows.addEventListener('change', resizeGrid);
 
 ui.modeButtons.forEach((button) => {
   button.addEventListener('click', () => setMode(button.dataset.mode));
@@ -1219,9 +1216,7 @@ const init = async () => {
     const response = await fetch('/api/layout');
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Load failed.');
-    state.cols = data.cols;
-    state.rows = data.rows;
-    state.tiles = data.tiles;
+    state.tiles = data.tiles; // grid size follows the pane and the zoom
   } catch (error) {
     setStatus(tr('lay.loadFailed', { msg: error.message }), 'error');
   }

@@ -30,7 +30,9 @@ const ELEMENT_STATES = Object.fromEntries(
   TRACK_TYPES.filter((type) => TrackCatalog.statesOf(type)).map((type) => [type, TrackCatalog.statesOf(type)])
 );
 const ROTATIONS = TrackCatalog.ROTATIONS;
-const GRID_LIMITS = { minCols: 4, maxCols: 60, minRows: 4, maxRows: 40 };
+// The browser shows as many squares as fit at the current zoom and saves only the
+// extent the elements use, so the upper limits are generous.
+const GRID_LIMITS = { minCols: 4, maxCols: 250, minRows: 4, maxRows: 250 };
 const DEFAULT_LAYOUT = { cols: 20, rows: 12, tiles: [] };
 
 const toInt = (value) => (Number.isInteger(Number(value)) ? Number(value) : NaN);

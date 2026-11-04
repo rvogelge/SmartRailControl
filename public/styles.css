@@ -697,24 +697,12 @@ body[data-mode='run'] .zoom-group {
   gap: 8px;
 }
 
-.grid-size {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-
-.grid-size input {
-  width: 68px;
-  padding: 6px 8px;
-}
 
 .board-scroll {
-  width: fit-content;
-  max-width: 100%;
+  /* Always the full width and the height left in the window, whatever the zoom. */
+  width: 100%;
   overflow: auto;
-  max-height: calc(100vh - 230px); /* refined in layout.js */
+  height: calc(100vh - 230px); /* refined in layout.js */
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: #0e151c;
@@ -1861,7 +1849,8 @@ body:not([data-mode='run']) .run-only {
 /* Locomotive control window (floats over the layout in run mode) */
 .throttle-window {
   position: fixed;
-  top: 84px;
+  /* Below the toolbar, so the zoom buttons stay reachable. */
+  top: 170px;
   right: 20px;
   /* Below the top bar, so the burger menu opens over the window. */
   z-index: 9;
