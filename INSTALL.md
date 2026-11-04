@@ -74,6 +74,78 @@ SERIAL_PORT=/dev/ttyAMA0 SERIAL_BAUD_RATE=19200 npm start
 
 The server starts on port 3000 by default.
 
+## 5a. Deploy with Podman
+
+If you want to run BirdRail in a Podman container, build the image from the project directory and pass through the USB serial device from the host.
+
+Create a `Containerfile` in the project root:
+
+```dockerfile
+FROM docker.io/library/node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --omit=dev
+COPY . .
+ENV PORT=3000
+EXPOSE 3000
+CMD ["npm", "start"]
+```
+
+Then build the image explicitly from that file and verify it exists before starting the container:
+
+```bash
+podman build -f Containerfile -t birdrail .
+podman images | grep birdrail
+```
+
+If the image is present, start the container:
+
+```bash
+podman run --rm -d \
+  --name birdrail \
+  -p 3000:3000 \
+  --device /dev/ttyUSB0:/dev/ttyUSB0 \
+  -e PORT=3000 \
+  -e SERIAL_PORT=/dev/ttyUSB0 \
+  birdrail
+```
+
+If your adapter uses a different serial path, replace `/dev/ttyUSB0` with the proper device such as `/dev/ttyAMA0` or a `/dev/serial/by-id/...` path.
+
+### Layout-only Podman deployment for testing the UI
+
+If you only want to test the layout and interface behavior in Podman without any USB serial hardware, disable the serial interface in the container:
+
+```bash
+podman build -f Containerfile -t birdrail .
+podman run --rm -d \
+  --name birdrail-layout \
+  -p 3000:3000 \
+  -e PORT=3000 \
+  -e BIRDRAIL_SERIAL_DISABLED=true \
+  birdrail
+```
+
+This starts the web app in a layout-only mode. The page loads normally, but any locomotive command is rejected because no serial device is configured. This is useful for testing the interface, layout, and browser interactions without a USB adapter on the host.
+
+> If Podman tries to pull `docker.io/library/birdrail:latest`, the local image was not built successfully yet. Fix the build error first, then rerun the `podman run` command.
+
+If you see `Error: stat /dev/ttyUSB0: no such file or directory`, the host does not have that serial device at that exact path. Check the device on the host before starting the container:
+
+```bash
+ls -l /dev/ttyUSB* /dev/ttyAMA* /dev/serial/by-id/*
+```
+
+If no device appears, reconnect the USB serial adapter or use the actual path reported by the system, such as `/dev/ttyAMA0` or a symlink under `/dev/serial/by-id`.
+
+For Podman on macOS, note that USB serial devices are usually not directly exposed from the Mac host into the Podman VM. In practice, a reliable Podman deployment of BirdRail is best on a Linux host with direct access to the USB serial adapter.
+
+If you are using a rootless Podman setup, make sure the user has access to the serial device and that the device node is available inside the container. The app should then be reachable at:
+
+```text
+http://localhost:3000
+```
+
 ## 6. Open the web interface
 
 From a browser on the same local network, open:

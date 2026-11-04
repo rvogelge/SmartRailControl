@@ -36,6 +36,15 @@ const clampSpeed = (speed) => Math.max(0, Math.min(MAX_SPEED, Math.round(Number(
 
 class SerialService {
   constructor(portName, baudRate = Number(process.env.SERIAL_BAUD_RATE || DEFAULT_BAUD_RATE)) {
+    const serialDisabledValue = String(process.env.BIRDRAIL_SERIAL_DISABLED ?? '').toLowerCase();
+    const serialEnabledValue = String(process.env.BIRDRAIL_SERIAL_ENABLED ?? '').toLowerCase();
+
+    this.disabled = ['1', 'true', 'yes', 'on'].includes(serialDisabledValue) || (
+      serialDisabledValue === '' &&
+      serialEnabledValue !== '' &&
+      ['0', 'false', 'no', 'off'].includes(serialEnabledValue)
+    );
+
     this.portName = portName || process.env.SERIAL_PORT || '/dev/ttyUSB0';
     this.baudRate = Number.isInteger(baudRate) ? Number(baudRate) : DEFAULT_BAUD_RATE;
     this.protocol = (process.env.INTELLIBOX_PROTOCOL || DEFAULT_PROTOCOL).toUpperCase();
@@ -47,6 +56,10 @@ class SerialService {
     this.connected = false;
     this.lastPacket = [];
     this.lastReceivedPacket = [];
+    if (this.disabled) {
+      console.log('Serial interface disabled via BIRDRAIL_SERIAL_DISABLED. Running in layout-only mode.');
+      return;
+    }
     this.connect();
   }
 
@@ -80,6 +93,10 @@ class SerialService {
   }
 
   connect() {
+    if (this.disabled) {
+      return;
+    }
+
     if (this.connection && this.connection.isOpen) {
       this.connection.close();
     }
@@ -128,6 +145,7 @@ class SerialService {
   getStatus() {
     return {
       connected: this.connected,
+      disabled: this.disabled,
       port: this.portName,
       baudRate: this.baudRate,
       protocol: this.protocol,
@@ -212,6 +230,14 @@ class SerialService {
       protocol: this.protocol
     });
 
+    if (this.disabled) {
+      return {
+        success: false,
+        packet: packetHex,
+        error: 'Serial output is disabled. This deployment is running in layout-only mode.'
+      };
+    }
+
     if (!this.connection || !this.connection.isOpen) {
       return {
         success: false,
@@ -266,6 +292,12 @@ class SerialService {
   writePacket(packet, metadata = {}) {
     this.lastPacket = packet;
     this.logCommunication('tx', packet, { ...metadata, protocol: this.protocol });
+
+    if (this.disabled) {
+      return Promise.reject(
+        new Error('Serial output is disabled. This deployment is running in layout-only mode.')
+      );
+    }
 
     if (!this.connection || !this.connection.isOpen) {
       return Promise.reject(
