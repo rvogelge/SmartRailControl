@@ -642,13 +642,32 @@ const render = () => {
 
 /* ---------- Zoom ---------- */
 
+// Width a vertical scroll bar takes in this browser (0 with overlay scroll bars, as on macOS).
+const scrollbarWidth = (() => {
+  let width = null;
+  return () => {
+    if (width === null) {
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:absolute;top:-999px;width:100px;height:100px;overflow:scroll';
+      document.body.append(probe);
+      width = probe.offsetWidth - probe.clientWidth;
+      probe.remove();
+    }
+    return width;
+  };
+})();
+
 const fitZoom = () => {
   const cardStyle = getComputedStyle(ui.boardCard);
   const availableWidth =
     ui.boardCard.clientWidth - parseFloat(cardStyle.paddingLeft) - parseFloat(cardStyle.paddingRight) - 2;
   const top = ui.boardScroll.getBoundingClientRect().top + window.scrollY;
   const availableHeight = Math.max(240, window.innerHeight - top - 64); // room for the status line
-  return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.floor(Math.min(availableWidth / state.cols, availableHeight / state.rows))));
+  // Fit uses the full width; a plan taller than the screen scrolls vertically in the pane.
+  // Leave room for that scroll bar so no horizontal scrolling is needed.
+  let zoom = Math.floor(availableWidth / state.cols);
+  if (zoom * state.rows > availableHeight) zoom = Math.floor((availableWidth - scrollbarWidth()) / state.cols);
+  return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom));
 };
 
 const setZoom = (zoom, { fit = false } = {}) => {
