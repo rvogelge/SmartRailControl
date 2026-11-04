@@ -183,3 +183,14 @@ test('keeps the F1-F4 function states of a controller', () => {
   const [controller] = new SettingsStore(file).getControllers().controllers;
   assert.deepEqual(controller.functions, [true, true, false, true]);
 });
+
+test('saves, trims and removes decoder notes', () => {
+  const file = tmpFile();
+  const store = new SettingsStore(file);
+  store.setDecoderNote(12, '  Entry turnout  ');
+  store.setDecoderNote('7', 'Signal A');
+  assert.deepEqual(new SettingsStore(file).getDecoderNotes(), { 7: 'Signal A', 12: 'Entry turnout' });
+  store.setDecoderNote(7, '');
+  assert.deepEqual(new SettingsStore(file).getDecoderNotes(), { 12: 'Entry turnout' });
+  assert.throws(() => store.setDecoderNote(0, 'x'));
+});

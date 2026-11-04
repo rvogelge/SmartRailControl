@@ -326,6 +326,38 @@ app.post('/api/locomotive/control', (req, res) => {
   }
 });
 
+/* ---------- Decoder test (switch a bare accessory address) ---------- */
+
+// Accessory decoders cannot be detected: they only receive commands. This lets the user
+// switch any address and watch which turnout, signal or uncoupler moves.
+app.post('/api/accessory/test', async (req, res) => {
+  const address = Number(req.body && req.body.address);
+  const color = req.body && req.body.color === 'red' ? 'red' : 'green';
+  if (!Number.isInteger(address) || address < 1) {
+    return res.status(400).json({ error: 'Decoder address must be a positive integer.' });
+  }
+  try {
+    const result = await serialService.sendAccessoryCommands([{ address, color }]);
+    return res.json({ ok: result.success, address, color, packets: result.packets, error: result.error });
+  } catch (error) {
+    // Address out of range for the selected protocol.
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+app.get('/api/decoders/notes', (_req, res) => {
+  res.json(settingsStore.getDecoderNotes());
+});
+
+app.put('/api/decoders/notes', (req, res) => {
+  try {
+    const { address, note } = req.body || {};
+    return res.json(settingsStore.setDecoderNote(address, note));
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
 app.post('/api/locomotive/functions', (req, res) => {
   try {
     const decoderId = Number(req.body.decoderId);

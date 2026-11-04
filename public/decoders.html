@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" data-title-key="title.decoders">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1117" />
+    <title>BirdRail – Decoder test</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="decoders-page">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 3h12a3 3 0 0 1 3 3v8a4 4 0 0 1-3.2 3.92l1.9 2.37a.75.75 0 1 1-1.17.94L16.06 18H7.94l-2.47 3.23a.75.75 0 1 1-1.18-.94l1.9-2.37A4 4 0 0 1 3 14V6a3 3 0 0 1 3-3Zm0 1.5A1.5 1.5 0 0 0 4.5 6v4h15V6A1.5 1.5 0 0 0 18 4.5H6Zm1.5 9a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z"/></svg>
+        </span>
+        <span class="brand-name">BirdRail</span>
+        <span class="page-title" data-i18n="dec.title">Decoder test</span>
+      </div>
+
+      <div class="topbar-actions">
+        <span id="interfaceState" class="status-chip offline">
+          <span class="dot" aria-hidden="true"></span>
+          <span id="interfaceText" data-i18n="ctl.offline">offline</span>
+        </span>
+        <div class="menu">
+          <button type="button" id="menuButton" class="icon-button menu-button" aria-haspopup="menu" aria-expanded="false" aria-controls="mainMenu" aria-label="Menu" title="Menu" data-i18n-attr="aria-label:menu.title; title:menu.title">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M4 6.25A.75.75 0 0 1 4.75 5.5h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 6.25Zm0 5.75a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 12Zm.75 5a.75.75 0 0 0 0 1.5h14.5a.75.75 0 0 0 0-1.5H4.75Z"/></svg>
+          </button>
+          <div id="mainMenu" class="menu-list" role="menu" aria-labelledby="menuButton" hidden>
+            <a role="menuitem" href="/#settings" data-action="settings"><span class="menu-icon" aria-hidden="true">⚙</span><span data-i18n="menu.settings">Settings</span></a>
+            <a role="menuitem" href="/#edit" data-action="edit"><span class="menu-icon" aria-hidden="true">✎</span><span data-i18n="menu.layout">Layout</span></a>
+            <a role="menuitem" href="/#run" data-action="run"><span class="menu-icon" aria-hidden="true">▶</span><span data-i18n="menu.run">Run</span></a>
+            <a role="menuitem" href="/decoders.html" data-action="decoders" aria-current="true"><span class="menu-icon" aria-hidden="true">⇄</span><span data-i18n="menu.decoders">Decoder test</span></a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="decoders-main">
+      <section class="card decoders-card" aria-labelledby="decodersHeading">
+        <div class="card-header">
+          <h2 id="decodersHeading" data-i18n="dec.heading">Accessory decoders</h2>
+        </div>
+        <p class="hint decoders-hint" data-i18n-html="dec.hint">
+          Accessory decoders only receive commands, so the Intellibox cannot tell which ones are connected.
+          Switch an address with <strong>Red</strong> or <strong>Green</strong>, watch which turnout, signal or uncoupler moves, and write it down in the note.
+        </p>
+
+        <form id="rangeForm" class="decoders-range">
+          <label class="field">
+            <span data-i18n="dec.from">From</span>
+            <input id="rangeFrom" type="number" min="1" inputmode="numeric" required />
+          </label>
+          <label class="field">
+            <span data-i18n="dec.to">To</span>
+            <input id="rangeTo" type="number" min="1" inputmode="numeric" required />
+          </label>
+          <button type="submit" class="ghost small" data-i18n="dec.show">Show</button>
+          <label class="decoders-filter">
+            <input id="onlyNoted" type="checkbox" />
+            <span data-i18n="dec.onlyKnown">Only addresses with a note or layout element</span>
+          </label>
+        </form>
+
+        <div class="decoders-list" role="table" aria-labelledby="decodersHeading">
+          <div class="decoder-row decoder-head" role="row">
+            <span role="columnheader" data-i18n="dec.address">Address</span>
+            <span role="columnheader" data-i18n="dec.switch">Switch</span>
+            <span role="columnheader" data-i18n="dec.inLayout">In the layout</span>
+            <span role="columnheader" data-i18n="dec.note">Note</span>
+          </div>
+          <div id="decoderRows" role="rowgroup"></div>
+        </div>
+
+        <p id="statusLine" class="response" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script src="trackCatalog.js"></script>
+    <script src="i18n.js"></script>
+    <script src="decoders.js"></script>
+    <script src="menu.js"></script>
+  </body>
+</html>

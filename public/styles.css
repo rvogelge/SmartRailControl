@@ -2056,3 +2056,192 @@ body:not([data-mode='run']) .run-only {
     height: 180px;
   }
 }
+
+/* Decoder test page */
+.decoders-main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 40px;
+}
+
+.decoders-card {
+  display: grid;
+  gap: 16px;
+}
+
+.decoders-card .card-header {
+  margin-bottom: 0;
+}
+
+.decoders-hint {
+  margin: 0;
+}
+
+.decoders-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.decoders-range .field input {
+  width: 110px;
+}
+
+.decoders-range > .ghost.small {
+  padding: 10px 16px;
+}
+
+.decoders-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.decoders-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.decoder-row {
+  display: grid;
+  grid-template-columns: 72px 172px minmax(0, 1fr) minmax(160px, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+
+#decoderRows > .decoder-row:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.decoder-head {
+  border-top: 0;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+#decoderRows > .hint {
+  margin: 0;
+  padding: 16px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.dec-address {
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.dec-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.dec-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 78px;
+}
+
+.dec-switch::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dec-switch.red::before {
+  background: var(--danger);
+}
+
+.dec-switch.green::before {
+  background: var(--ok);
+}
+
+.dec-switch.busy {
+  opacity: 0.6;
+}
+
+.dec-switch.sent.red {
+  background: var(--danger-soft);
+  border-color: rgba(255, 93, 93, 0.5);
+}
+
+.dec-switch.sent.green {
+  background: rgba(62, 207, 142, 0.14);
+  border-color: rgba(62, 207, 142, 0.5);
+}
+
+.dec-switch.failed {
+  border-color: var(--danger);
+  border-style: dashed;
+}
+
+.dec-uses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.dec-uses.muted {
+  color: var(--muted);
+}
+
+.dec-use {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+
+.dec-uses.conflict .dec-use {
+  box-shadow: inset 0 0 0 1px var(--warn);
+}
+
+.dec-note input[type='text'] {
+  padding: 7px 10px;
+  transition: border-color 0.3s ease;
+}
+
+.dec-note input.saved {
+  border-color: var(--ok);
+}
+
+@media (max-width: 760px) {
+  .decoders-main {
+    padding: 16px;
+  }
+
+  .decoder-head {
+    display: none;
+  }
+
+  .decoder-row {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 8px 12px;
+  }
+
+  .dec-uses,
+  .dec-note {
+    grid-column: 2;
+  }
+
+  /* The palette hint is hidden on phones; this one explains the page. */
+  .decoders-card .decoders-hint,
+  #decoderRows > .hint {
+    display: block;
+  }
+}

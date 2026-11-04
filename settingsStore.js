@@ -6,6 +6,20 @@ const DEFAULT_FILE = path.join(__dirname, 'data', 'settings.json');
 const MAX_SPEED = 126;
 const MAX_CONTROLLERS = 50;
 const FUNCTION_COUNT = 4; // F1-F4, like the f1-f4 keys of the Intellibox
+const MAX_NOTE_LENGTH = 60;
+
+// Decoder test page: what the user found out about an accessory address,
+// e.g. { "12": "Entry turnout, station left" }.
+const sanitizeDecoderNotes = (input) => {
+  const notes = {};
+  if (!input || typeof input !== 'object') return notes;
+  Object.entries(input).forEach(([key, value]) => {
+    const address = toInt(key);
+    const text = String(value || '').trim().slice(0, MAX_NOTE_LENGTH);
+    if (address >= 1 && address <= TrackCatalog.MAX_ADDRESS && text) notes[address] = text;
+  });
+  return notes;
+};
 const LANGUAGES = ['en', 'de'];
 const DEFAULT_UI = { language: 'en' };
 
@@ -245,7 +259,8 @@ class SettingsStore {
       controllers,
       activeControllerId,
       layout,
-      rules
+      rules,
+      decoderNotes: sanitizeDecoderNotes(raw.decoderNotes)
     };
   }
 
@@ -341,6 +356,23 @@ class SettingsStore {
     this.data.layout = sanitized;
     this.save();
     return this.getLayout();
+  }
+
+  getDecoderNotes() {
+    return { ...this.data.decoderNotes };
+  }
+
+  // An empty note removes the entry.
+  setDecoderNote(address, note) {
+    const value = toInt(address);
+    if (!(value >= 1 && value <= TrackCatalog.MAX_ADDRESS)) {
+      throw new Error(`Decoder address must be between 1 and ${TrackCatalog.MAX_ADDRESS}.`);
+    }
+    const text = String(note || '').trim().slice(0, MAX_NOTE_LENGTH);
+    if (text) this.data.decoderNotes[value] = text;
+    else delete this.data.decoderNotes[value];
+    this.save();
+    return this.getDecoderNotes();
   }
 
   getRules() {

@@ -10,6 +10,7 @@ BirdRail is a small Raspberry Pi web app for controlling a model railway locomot
 - Settings dialog: serial port and baud rate, user interface language (English / Deutsch), data location
 - Controllers, layout, rules and settings are stored on the Pi in one file (default `data/settings.json`, folder selectable), so every browser sees the same setup and it survives restarts
 - Track layout editor to draw a simple track plan on a square grid
+- Decoder test page (menu → *Decoder test*): switch any accessory address red/green to find out which turnout, signal or uncoupler it drives, see which layout element uses it, and keep a note per address. Accessory decoders only receive commands, so the Intellibox cannot list which ones are connected.
 - Logic rules editor in a separate window ("if contact 5 turns on, set turnout 12 to diverging"), run by the server
 - Works on phones and desktop browsers on the local network
 
@@ -190,6 +191,7 @@ The new state is saved even if the command could not be sent (no address, serial
 - `public/throttle.js` – locomotive control window
 - `public/settings.js` – settings dialog and interface status
 - `public/menu.js` – burger menu in the top bar
+- `public/decoders.html`, `public/decoders.js` – decoder test page
 - `public/rules.html`, `public/rules.js` – logic rules editor (separate window)
 - `public/trackCatalog.js` – element types, states, addresses and footprints (shared by browser and server)
 - `public/i18n.js` – user interface texts (English, German)
