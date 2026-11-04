@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const DEFAULT_FILE = path.join(__dirname, 'data', 'settings.json');
 const MAX_SPEED = 126;
 const MAX_CONTROLLERS = 50;
+const FUNCTION_COUNT = 4; // F1-F4, like the f1-f4 keys of the Intellibox
 const LANGUAGES = ['en', 'de'];
 const DEFAULT_UI = { language: 'en' };
 
@@ -160,6 +161,7 @@ const createController = (overrides = {}) => ({
   decoderId: 3,
   speed: 0,
   direction: 'forward',
+  functions: Array(FUNCTION_COUNT).fill(false),
   ...overrides
 });
 
@@ -181,7 +183,10 @@ const sanitizeController = (input) => {
     name,
     decoderId,
     speed: Math.max(0, Math.min(MAX_SPEED, Math.round(Number(input.speed) || 0))),
-    direction: input.direction === 'reverse' ? 'reverse' : 'forward'
+    direction: input.direction === 'reverse' ? 'reverse' : 'forward',
+    functions: Array.from({ length: FUNCTION_COUNT }, (_v, i) =>
+      Boolean(Array.isArray(input.functions) && input.functions[i])
+    )
   };
 };
 
@@ -366,6 +371,7 @@ class SettingsStore {
   }
 }
 
+SettingsStore.FUNCTION_COUNT = FUNCTION_COUNT;
 SettingsStore.TRACK_TYPES = TRACK_TYPES;
 SettingsStore.ELEMENT_STATES = ELEMENT_STATES;
 SettingsStore.GRID_LIMITS = GRID_LIMITS;

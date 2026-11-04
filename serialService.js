@@ -11,6 +11,9 @@ const P50X_PREFIX = 0x58;
 const P50X_XLOK = 0x80;
 const P50X_DIR_FORWARD = 0x20;
 const P50X_LIGHT = 0x10;
+const P50X_XFUNC = 0x88; // F1-F8 of a locomotive
+const P50_FUNCTION = 0x40; // legacy P50: 64 + f1..f4 bits, then the address
+const FUNCTION_COUNT = 4;
 const P50X_XTRNT = 0x90;
 const P50X_XSENSOR = 0x98; // read one s88 module
 const P50X_XEVENT = 0xc8; // which kinds of events are pending
@@ -414,6 +417,58 @@ class SerialService {
       response: this.lastReceivedPacket,
       protocol: this.protocol
     };
+  }
+
+  /* ---------- Locomotive functions (F1-F4) ---------- */
+
+  // functions: array of booleans, index 0 = F1. F5-F8 are always sent as off.
+  // P50X XFunc: 'X', 0x88, address low, address high, bit0 = F1 ... bit7 = F8.
+  // Legacy P50: [64 + f1*1 + f2*2 + f3*4 + f4*8, address 1..80].
+  buildFunctionPacket({ decoderId, functions }) {
+    const address = Number(decoderId);
+    const bits = Array.from({ length: FUNCTION_COUNT }, (_v, i) => Boolean(functions && functions[i]))
+      .reduce((value, on, i) => value | (on ? 1 << i : 0), 0);
+
+    if (this.protocol === 'P50') {
+      if (!Number.isInteger(address) || address < 1 || address > 80) {
+        throw new Error('P50 supports decoder addresses 1-80 only.');
+      }
+      return [P50_FUNCTION + bits, address];
+    }
+    if (!Number.isInteger(address) || address < 1 || address > 10239) {
+      throw new Error('P50X supports decoder addresses 1-10239.');
+    }
+    return [P50X_PREFIX, P50X_XFUNC, address & 0xff, (address >> 8) & 0xff, bits];
+  }
+
+  sendFunctionCommand({ decoderId, functions }) {
+    const packet = this.buildFunctionPacket({ decoderId, functions });
+    this.lastPacket = packet;
+    const packetHex = packet.map((byte) => `0x${byte.toString(16).padStart(2, '0').toUpperCase()}`);
+    this.logCommunication('tx', packet, { decoderId, functions, protocol: this.protocol });
+
+    if (this.disabled) {
+      return {
+        success: false,
+        packet: packetHex,
+        error: 'Serial output is disabled. This deployment is running in layout-only mode.'
+      };
+    }
+    if (!this.connection || !this.connection.isOpen) {
+      return {
+        success: false,
+        packet: packetHex,
+        error: `Serial port ${this.portName} is not open. Check the USB serial adapter and serial settings.`
+      };
+    }
+
+    if (this.protocol !== 'P50') {
+      this.expectReply(REPLY_READERS.status, { label: 'XFunc' }).catch(() => {});
+    }
+    this.connection.write(Buffer.from(packet), (error) => {
+      if (error) console.error('[Intellibox TX ERROR]', error.message);
+    });
+    return { success: true, packet: packetHex, protocol: this.protocol };
   }
 
   /* ---------- Accessories (turnouts, signals, uncouplers) ---------- */

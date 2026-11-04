@@ -4,12 +4,12 @@ BirdRail is a small Raspberry Pi web app for controlling a model railway locomot
 
 ## Features
 
-- Several saved locomotive controllers, selectable from a list (add, rename, delete)
-- Each controller keeps its decoder ID, speed and direction
-- Live speed slider, forward/reverse toggle, stop and emergency stop
-- Settings dialog (gear icon): serial port and baud rate, user interface language (English / Deutsch), data location
+- One page with a burger menu (top right): **Settings**, **Layout** (edit the track plan) and **Run** (operate it)
+- Locomotive control window that appears in run mode: locomotive dropdown, vertical speed slider, function buttons F1–F4, direction, stop and emergency stop; it can be dragged anywhere and closed
+- Several saved locomotives (add, rename, delete); each keeps its decoder ID, speed, direction and F1–F4
+- Settings dialog: serial port and baud rate, user interface language (English / Deutsch), data location
 - Controllers, layout, rules and settings are stored on the Pi in one file (default `data/settings.json`, folder selectable), so every browser sees the same setup and it survives restarts
-- Track layout page (`/layout.html`, "Layout" tab) to draw a simple track plan on a square grid
+- Track layout editor to draw a simple track plan on a square grid
 - Logic rules editor in a separate window ("if contact 5 turns on, set turnout 12 to diverging"), run by the server
 - Works on phones and desktop browsers on the local network
 
@@ -67,7 +67,7 @@ Environment variables:
 
 ## Settings dialog
 
-Open it with the gear icon (or the status chip) on the Control page.
+Open it with **Settings** in the burger menu (or click the status chip).
 
 - **Interface:** serial port and baud rate, applied with *Apply interface*.
 - **Language:** English or Deutsch. The choice is saved on the server, so it applies to all pages and all browsers; other open windows (layout, logic rules) switch right away. Error messages that come from the server stay in English.
@@ -89,13 +89,15 @@ podman run -d --name birdrail -p 3000:3000 -v birdrail-data:/app/data birdrail
 
 ## App behavior
 
-Moving the slider or changing the direction sends a command right away. Selecting another controller does not send anything; the locomotive is only driven once you move its slider. Interface settings saved in the dialog take precedence over `SERIAL_PORT` / `SERIAL_BAUD_RATE` on the next start. Delete the data file (see *Settings dialog → Data storage*) to reset everything.
+Choose **Run** in the menu (or press `E`) and the locomotive control window appears over the layout; drag it by its title bar, close it with ✕ and bring it back with *🚂 Loco control* in the toolbar. Pick the locomotive in the dropdown at the top; ✎ next to it edits its name and decoder address and adds or deletes locomotives.
+
+Moving the slider or changing the direction sends a command right away. F1–F4 switch the locomotive's functions (P50X `XFunc`, legacy P50 function command; F5–F8 are sent as off). Selecting another locomotive does not send anything; the locomotive is only driven once you move its slider. Interface settings saved in the dialog take precedence over `SERIAL_PORT` / `SERIAL_BAUD_RATE` on the next start. Delete the data file (see *Settings dialog → Data storage*) to reset everything.
 
 ## Track layout editor
 
-Open the **Layout** tab. Every element fills exactly one grid square and snaps to the grid.
+Choose **Layout** in the menu. Every element fills exactly one grid square and snaps to the grid.
 
-The page has two modes, switched with **Edit / Run** in the toolbar (or the `E` key). `layout.html#edit` and `layout.html#run` open a mode directly.
+The page has two modes, switched with **Layout / Run** in the menu, **Edit / Run** in the toolbar or the `E` key. `/#edit` and `/#run` open a mode directly (`/layout.html` forwards to `/#edit`).
 
 **Run mode** shows only the layout and operates the real accessories: every click sends the matching command to the Intellibox (see *Switching accessories* below). Click a turnout, crossover switch, signal or uncoupler to operate it: turnouts switch between straight and diverging, the crossover switch between straight and turning routes, and signals between red and green. The active route is drawn bright, the other route dimmed. States are saved with the layout.
 
@@ -183,10 +185,12 @@ The new state is saved even if the command could not be sent (no address, serial
 - `ruleEngine.js` – runs the logic rules when a sensor changes
 - `dataLocation.js` – where the data file lives, folder browser, persistence check
 - `feedbackPoller.js` – reads the s88 feedback modules through the Intellibox
-- `public/index.html` – locomotive control page
-- `public/layout.html`, `public/layout.js` – track layout editor
+- `public/index.html` – main page: track layout, locomotive control window, settings dialog
+- `public/layout.js` – track layout editor (edit and run mode)
+- `public/throttle.js` – locomotive control window
+- `public/settings.js` – settings dialog and interface status
+- `public/menu.js` – burger menu in the top bar
 - `public/rules.html`, `public/rules.js` – logic rules editor (separate window)
 - `public/trackCatalog.js` – element types, states, addresses and footprints (shared by browser and server)
-- `public/app.js` – browser-side control logic and settings dialog
 - `public/i18n.js` – user interface texts (English, German)
 - `public/styles.css` – styling

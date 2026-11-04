@@ -326,6 +326,27 @@ app.post('/api/locomotive/control', (req, res) => {
   }
 });
 
+app.post('/api/locomotive/functions', (req, res) => {
+  try {
+    const decoderId = Number(req.body.decoderId);
+    if (!Number.isInteger(decoderId) || decoderId <= 0) {
+      return res.status(400).json({ error: 'Decoder ID must be a positive integer.' });
+    }
+    const functions = Array.isArray(req.body.functions) ? req.body.functions.map(Boolean) : [];
+    const result = serialService.sendFunctionCommand({ decoderId, functions });
+    return res.json({
+      ok: result.success,
+      decoderId,
+      functions,
+      packet: result.packet,
+      error: result.error,
+      status: serialService.getStatus()
+    });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

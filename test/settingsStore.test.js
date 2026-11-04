@@ -28,7 +28,7 @@ test('persists controllers and serial settings across instances', () => {
   store.setSerial({ portName: '/dev/ttyUSB1', baudRate: 2400 });
 
   const reloaded = new SettingsStore(file);
-  assert.deepEqual(reloaded.getControllers().controllers[0], { id: 'a', name: 'BR 218', decoderId: 242, speed: 40, direction: 'reverse' });
+  assert.deepEqual(reloaded.getControllers().controllers[0], { id: 'a', name: 'BR 218', decoderId: 242, speed: 40, direction: 'reverse', functions: [false, false, false, false] });
   assert.equal(reloaded.getControllers().activeControllerId, 'b');
   assert.deepEqual(reloaded.getSerial(), { portName: '/dev/ttyUSB1', baudRate: 2400 });
 });
@@ -38,7 +38,7 @@ test('sanitizes speed and direction, rejects bad decoder IDs and empty lists', (
   const { controllers } = store.setControllers({
     controllers: [{ id: 'x', name: '', decoderId: 5, speed: 999, direction: 'sideways' }]
   });
-  assert.deepEqual(controllers[0], { id: 'x', name: 'Locomotive 5', decoderId: 5, speed: 126, direction: 'forward' });
+  assert.deepEqual(controllers[0], { id: 'x', name: 'Locomotive 5', decoderId: 5, speed: 126, direction: 'forward', functions: [false, false, false, false] });
   assert.throws(() => store.setControllers({ controllers: [{ decoderId: 0 }] }));
   assert.throws(() => store.setControllers({ controllers: [] }));
 });
@@ -173,4 +173,13 @@ test('setTileState changes and saves only the state of one element', () => {
   assert.equal(new SettingsStore(file).getTile('s1').state, 'go');
   assert.throws(() => store.setTileState('s1', 'diverging'));
   assert.throws(() => store.setTileState('nope', 'go'));
+});
+
+test('keeps the F1-F4 function states of a controller', () => {
+  const file = tmpFile();
+  new SettingsStore(file).setControllers({
+    controllers: [{ id: 'f', name: 'BR 50', decoderId: 50, functions: [true, 'yes', 0, true, true] }]
+  });
+  const [controller] = new SettingsStore(file).getControllers().controllers;
+  assert.deepEqual(controller.functions, [true, true, false, true]);
 });

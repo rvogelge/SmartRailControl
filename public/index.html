@@ -16,64 +16,153 @@
         <span class="brand-name">BirdRail</span>
       </div>
 
-      <nav class="tabs" aria-label="Pages">
-        <a href="/" aria-current="page" data-i18n="nav.control">Control</a>
-        <a href="/layout.html" data-i18n="nav.layout">Layout</a>
-      </nav>
 
       <div class="topbar-actions">
+        <span id="saveState" class="save-state" aria-live="polite" data-i18n="common.saved">Saved</span>
         <button type="button" id="statusChip" class="status-chip offline" title="Interface status" data-i18n-attr="title:ctl.statusTitle">
           <span class="dot" aria-hidden="true"></span>
           <span id="statusText" data-i18n="ctl.offline">offline</span>
         </button>
-        <button type="button" id="openSettings" class="icon-button" aria-label="Settings" title="Settings" data-i18n-attr="title:set.gear; aria-label:set.gear">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm0 5.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm8.6-3.1-1.7-.4a7 7 0 0 0-.6-1.5l.9-1.5a.75.75 0 0 0-.1-.9l-1.7-1.7a.75.75 0 0 0-.9-.1l-1.5.9a7 7 0 0 0-1.5-.6l-.4-1.7A.75.75 0 0 0 12.4 3h-2.4a.75.75 0 0 0-.7.6l-.4 1.7a7 7 0 0 0-1.5.6l-1.5-.9a.75.75 0 0 0-.9.1L3.3 6.8a.75.75 0 0 0-.1.9l.9 1.5a7 7 0 0 0-.6 1.5l-1.7.4a.75.75 0 0 0-.6.7v2.4c0 .35.24.65.6.73l1.7.4c.14.52.35 1.02.6 1.5l-.9 1.5a.75.75 0 0 0 .1.9l1.7 1.7c.24.24.62.29.9.1l1.5-.9c.48.26.98.46 1.5.6l.4 1.7c.08.35.38.6.73.6h2.4c.35 0 .65-.24.73-.6l.4-1.7c.52-.14 1.02-.34 1.5-.6l1.5.9c.29.19.66.14.9-.1l1.7-1.7a.75.75 0 0 0 .1-.9l-.9-1.5c.26-.48.46-.98.6-1.5l1.7-.4a.75.75 0 0 0 .6-.73V11.6a.75.75 0 0 0-.6-.7Z"/></svg>
-        </button>
+        <div class="menu">
+          <button type="button" id="menuButton" class="icon-button menu-button" aria-haspopup="menu" aria-expanded="false" aria-controls="mainMenu" aria-label="Menu" title="Menu" data-i18n-attr="aria-label:menu.title; title:menu.title">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M4 6.25A.75.75 0 0 1 4.75 5.5h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 6.25Zm0 5.75a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 12Zm.75 5a.75.75 0 0 0 0 1.5h14.5a.75.75 0 0 0 0-1.5H4.75Z"/></svg>
+          </button>
+          <div id="mainMenu" class="menu-list" role="menu" aria-labelledby="menuButton" hidden>
+            <a role="menuitem" href="/#settings" data-action="settings"><span class="menu-icon" aria-hidden="true">⚙</span><span data-i18n="menu.settings">Settings</span></a>
+            <a role="menuitem" href="/#edit" data-action="edit"><span class="menu-icon" aria-hidden="true">✎</span><span data-i18n="menu.layout">Layout</span></a>
+            <a role="menuitem" href="/#run" data-action="run"><span class="menu-icon" aria-hidden="true">▶</span><span data-i18n="menu.run">Run</span></a>
+          </div>
+        </div>
       </div>
     </header>
 
-    <main class="layout">
-      <aside class="card controller-list-card" aria-label="Controllers" data-i18n-attr="aria-label:ctl.controllers">
+    <main class="layout-editor">
+      <aside class="card palette-card" aria-label="Track elements" data-i18n-attr="aria-label:lay.elements">
         <div class="card-header">
-          <h2 data-i18n="ctl.controllers">Controllers</h2>
-          <button type="button" id="addController" class="ghost small" data-i18n="ctl.add">+ Add</button>
+          <h2 data-i18n="lay.elements">Elements</h2>
         </div>
-        <ul id="controllerList" class="controller-list" role="listbox" aria-label="Select controller" data-i18n-attr="aria-label:ctl.selectController"></ul>
+        <ul id="palette" class="palette" role="listbox" aria-label="Select element" data-i18n-attr="aria-label:lay.selectElement"></ul>
+        <p class="hint" data-i18n-html="lay.hint">
+          Pick an element, then click a square to place it. Select an element to set its decoder address (double-click jumps to the field).<br />
+          <kbd>Shift</kbd>/<kbd>Ctrl</kbd>-click or drag a frame to select several · <kbd>←↑→↓</kbd> move · <kbd>R</kbd> rotate · <kbd>Del</kbd> remove · <kbd>Ctrl</kbd>+<kbd>A</kbd> all · <kbd>Esc</kbd> select tool · <kbd>E</kbd> edit/run · <kbd>+</kbd>/<kbd>−</kbd>/<kbd>0</kbd> zoom/fit
+        </p>
       </aside>
 
-      <section class="card throttle" aria-label="Locomotive control" data-i18n-attr="aria-label:ctl.locoControl">
-        <div class="throttle-head">
-          <input id="controllerName" class="name-input" type="text" maxlength="40" aria-label="Controller name" data-i18n-attr="aria-label:ctl.name" />
-          <label class="decoder-field">
-            <span data-i18n="ctl.decoder">Decoder</span>
-            <input id="decoderId" type="number" min="1" max="10239" inputmode="numeric" required />
-          </label>
+      <section class="card board-card" aria-label="Layout pane" data-i18n-attr="aria-label:lay.layoutPane">
+        <div class="toolbar">
+          <div class="segmented mode-switch" role="radiogroup" aria-label="Mode" data-i18n-attr="aria-label:lay.mode">
+            <button type="button" class="segment" data-mode="edit" role="radio" aria-checked="true" title="Edit layout (E)" data-i18n="lay.edit" data-i18n-attr="title:lay.editTitle">✎ Edit</button>
+            <button type="button" class="segment" data-mode="run" role="radio" aria-checked="false" title="Run mode (E)" data-i18n="lay.run" data-i18n-attr="title:lay.runTitle">▶ Run</button>
+          </div>
+          <div class="toolbar-group edit-only">
+            <button type="button" id="rotateButton" class="ghost small" data-i18n="lay.rotate" data-i18n-attr="title:lay.rotateTitle">⟳ Rotate</button>
+            <button type="button" id="deleteButton" class="ghost small danger-text" data-i18n-attr="title:lay.removeTitle">Remove</button>
+            <button type="button" id="checkButton" class="ghost small check-button" aria-controls="issuesPanel" data-i18n-attr="title:lay.checkTitle">✓ Check</button>
+          </div>
+          <div class="toolbar-group run-only">
+            <button type="button" id="throttleOpen" class="ghost small" data-i18n="ctl.openWindow" data-i18n-attr="title:ctl.openWindowTitle">🚂 Loco control</button>
+          </div>
+          <div class="toolbar-group">
+            <button type="button" id="rulesButton" class="ghost small" data-i18n="lay.rules" data-i18n-attr="title:lay.rulesTitle">⚡ Logic rules</button>
+          </div>
+          <div class="toolbar-group zoom-group" role="group" aria-label="Zoom" data-i18n-attr="aria-label:lay.zoom">
+            <button type="button" id="zoomOut" class="ghost small icon-text" title="Zoom out (−)" aria-label="Zoom out" data-i18n-attr="title:lay.zoomOut; aria-label:lay.zoomOut">−</button>
+            <span id="zoomLabel" class="zoom-label">100%</span>
+            <button type="button" id="zoomIn" class="ghost small icon-text" title="Zoom in (+)" aria-label="Zoom in" data-i18n-attr="title:lay.zoomIn; aria-label:lay.zoomIn">+</button>
+            <button type="button" id="zoomFit" class="ghost small" aria-pressed="false" data-i18n="lay.fit" data-i18n-attr="title:lay.fitTitle">Fit</button>
+          </div>
+          <div class="toolbar-group edit-only">
+            <label class="grid-size">
+              <span data-i18n="lay.cols">Cols</span>
+              <input id="colsInput" type="number" min="4" max="60" />
+            </label>
+            <label class="grid-size">
+              <span data-i18n="lay.rows">Rows</span>
+              <input id="rowsInput" type="number" min="4" max="40" />
+            </label>
+            <button type="button" id="clearButton" class="ghost small danger-text" data-i18n="lay.clear">Clear all</button>
+          </div>
         </div>
 
-        <div class="speed-display">
-          <output id="speedValue" for="speed">0</output>
-          <span class="speed-unit">/ 126</span>
-          <span id="directionBadge" class="direction-badge">Forward</span>
+        <div id="issuesPanel" class="issues-panel edit-only" hidden>
+          <ul id="issuesList" class="issues-list"></ul>
         </div>
 
-        <input id="speed" class="speed-slider" type="range" min="0" max="126" step="1" value="0" aria-label="Speed" data-i18n-attr="aria-label:ctl.speed" />
-
-        <div class="segmented" role="radiogroup" aria-label="Direction" data-i18n-attr="aria-label:ctl.direction">
-          <button type="button" class="segment" data-direction="reverse" role="radio" aria-checked="false" data-i18n="ctl.reverseBtn">◀ Reverse</button>
-          <button type="button" class="segment" data-direction="forward" role="radio" aria-checked="true" data-i18n="ctl.forwardBtn">Forward ▶</button>
+        <div id="propsBar" class="props-bar edit-only" hidden>
+          <strong id="propsTitle"></strong>
+          <div id="propsFields" class="props-fields"></div>
         </div>
 
-        <div class="actions">
-          <button type="button" id="stopButton" class="stop" data-i18n="ctl.stop">Stop</button>
-          <button type="button" id="emergencyButton" class="emergency" data-i18n="ctl.emergency">Emergency stop</button>
+        <div class="board-scroll">
+          <svg id="board" class="board" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Track layout grid" data-i18n-attr="aria-label:lay.grid">
+            <defs>
+              <pattern id="gridPattern" width="100" height="100" patternUnits="userSpaceOnUse">
+                <rect width="100" height="100" fill="none" stroke="var(--grid-line)" stroke-width="2" />
+              </pattern>
+            </defs>
+            <rect id="gridRect" x="0" y="0" fill="url(#gridPattern)" />
+            <g id="tilesLayer"></g>
+            <g id="overlayLayer" pointer-events="none"></g>
+          </svg>
         </div>
 
-        <div class="throttle-foot">
-          <p id="responseBox" class="response" aria-live="polite" data-i18n="common.ready">Ready.</p>
-          <button type="button" id="deleteController" class="ghost small danger-text" data-i18n="ctl.delete">Delete controller</button>
-        </div>
+        <p id="statusLine" class="response" aria-live="polite" data-i18n="common.ready">Ready.</p>
       </section>
     </main>
+
+    <section id="throttleWindow" class="throttle-window" aria-labelledby="throttleTitle" hidden>
+      <div class="tw-head" id="throttleHandle">
+        <h2><span id="throttleTitle" data-i18n="ctl.window">Locomotive</span><span id="throttleAddress" class="tw-address"></span></h2>
+        <button type="button" id="throttleClose" class="icon-button small-x" aria-label="Close" title="Close" data-i18n-attr="aria-label:common.close; title:common.close">✕</button>
+      </div>
+
+      <div class="tw-select">
+        <select id="locoSelect" aria-label="Select locomotive" data-i18n-attr="aria-label:ctl.selectLoco"></select>
+        <button type="button" id="locoEditToggle" class="icon-button" aria-expanded="false" aria-controls="locoEdit" aria-label="Edit locomotive" title="Edit locomotive" data-i18n-attr="aria-label:ctl.editLoco; title:ctl.editLoco">✎</button>
+      </div>
+
+      <div id="locoEdit" class="tw-edit" hidden>
+        <label class="field">
+          <span data-i18n="ctl.nameLabel">Name</span>
+          <input id="controllerName" type="text" maxlength="40" />
+        </label>
+        <label class="field">
+          <span data-i18n="ctl.decoder">Decoder</span>
+          <input id="decoderId" type="number" min="1" max="10239" inputmode="numeric" required />
+        </label>
+        <div class="tw-edit-actions">
+          <button type="button" id="addController" class="ghost small" data-i18n="ctl.add">+ Add</button>
+          <button type="button" id="deleteController" class="ghost small danger-text" data-i18n="ctl.delete">Delete</button>
+        </div>
+      </div>
+
+      <div class="tw-speed">
+        <output id="speedValue" for="speed">0</output>
+        <span id="directionBadge" class="direction-badge">Forward</span>
+      </div>
+
+      <div class="tw-drive">
+        <input id="speed" class="speed-slider vertical" type="range" min="0" max="126" step="1" value="0" aria-label="Speed" aria-orientation="vertical" data-i18n-attr="aria-label:ctl.speed" />
+        <div id="functionButtons" class="tw-functions" role="group" aria-label="Functions" data-i18n-attr="aria-label:ctl.functions">
+          <button type="button" class="fn-button" data-function="0" aria-pressed="false">F1</button>
+          <button type="button" class="fn-button" data-function="1" aria-pressed="false">F2</button>
+          <button type="button" class="fn-button" data-function="2" aria-pressed="false">F3</button>
+          <button type="button" class="fn-button" data-function="3" aria-pressed="false">F4</button>
+        </div>
+      </div>
+
+      <div id="directionSwitch" class="segmented tw-direction" role="radiogroup" aria-label="Direction" data-i18n-attr="aria-label:ctl.direction">
+        <button type="button" class="segment" data-direction="reverse" role="radio" aria-checked="false" aria-label="Reverse" title="Reverse" data-i18n-attr="aria-label:ctl.reverse; title:ctl.reverse">◀</button>
+        <button type="button" class="segment" data-direction="forward" role="radio" aria-checked="true" aria-label="Forward" title="Forward" data-i18n-attr="aria-label:ctl.forward; title:ctl.forward">▶</button>
+      </div>
+
+      <div class="tw-actions">
+        <button type="button" id="stopButton" class="stop" data-i18n="ctl.stop">Stop</button>
+        <button type="button" id="emergencyButton" class="emergency" data-i18n="ctl.emergency">Emergency stop</button>
+      </div>
+
+      <p id="responseBox" class="response tw-response" aria-live="polite"></p>
+    </section>
 
     <dialog id="settingsDialog" class="dialog settings-dialog">
       <div class="dialog-body">
@@ -163,7 +252,11 @@
       </div>
     </dialog>
 
+    <script src="trackCatalog.js"></script>
     <script src="i18n.js"></script>
-    <script src="app.js"></script>
+    <script src="layout.js"></script>
+    <script src="settings.js"></script>
+    <script src="throttle.js"></script>
+    <script src="menu.js"></script>
   </body>
 </html>

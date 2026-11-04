@@ -748,7 +748,13 @@ const setMode = (mode) => {
   } else {
     setTool(state.tool);
   }
+  window.dispatchEvent(new CustomEvent('modechange', { detail: { mode: state.mode } }));
 };
+
+// Menu entries of the top bar (menu.js).
+window.BirdRail = window.BirdRail || {};
+window.BirdRail.edit = () => setMode('edit');
+window.BirdRail.run = () => setMode('run');
 
 // Sends the operation to the server, which switches the decoder(s) on the Intellibox.
 const sendOperation = async (tile, newState, label) => {

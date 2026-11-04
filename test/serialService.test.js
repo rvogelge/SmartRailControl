@@ -95,3 +95,17 @@ test('accessory commands report an error when the port is not open', async () =>
   assert.equal(result.success, false);
   assert.match(result.error, /not open/);
 });
+
+test('P50X XFunc packet sets F1-F4 as bits 0-3 of the function byte', () => {
+  const service = createService();
+  assert.deepEqual(service.buildFunctionPacket({ decoderId: 3, functions: [true, false, true, false] }), [0x58, 0x88, 3, 0, 0x05]);
+  assert.deepEqual(service.buildFunctionPacket({ decoderId: 1000, functions: [false, false, false, true] }), [0x58, 0x88, 0xe8, 0x03, 0x08]);
+  assert.deepEqual(service.buildFunctionPacket({ decoderId: 3, functions: [] }), [0x58, 0x88, 3, 0, 0]);
+  assert.throws(() => service.buildFunctionPacket({ decoderId: 0, functions: [] }));
+});
+
+test('legacy P50 function packet is 64 + f1-f4 bits, then the address', () => {
+  const service = createService('P50');
+  assert.deepEqual(service.buildFunctionPacket({ decoderId: 24, functions: [true, true, false, true] }), [64 + 1 + 2 + 8, 24]);
+  assert.throws(() => service.buildFunctionPacket({ decoderId: 81, functions: [] }));
+});
