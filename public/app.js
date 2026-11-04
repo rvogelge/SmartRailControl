@@ -24,7 +24,8 @@ const el = {
   infoProtocol: $('infoProtocol'),
   infoLine: $('infoLine'),
   infoStatus: $('infoStatus'),
-  settingsMessage: $('settingsMessage')
+  settingsMessage: $('settingsMessage'),
+  languageSelect: $('languageSelect')
 };
 
 const state = {
@@ -298,6 +299,36 @@ el.decoderId.addEventListener('change', () => {
 });
 
 /* ---------- Interface status & settings dialog ---------- */
+
+const LANGUAGE_KEY = 'birdrail.language';
+const LANGUAGES = ['en', 'de'];
+
+const loadLanguage = () => {
+  try {
+    const saved = localStorage.getItem(LANGUAGE_KEY);
+    if (LANGUAGES.includes(saved)) return saved;
+  } catch (_error) {
+    // Storage unavailable: fall back to the default.
+  }
+  return 'en';
+};
+
+const applyLanguage = (language) => {
+  document.documentElement.lang = language;
+  el.languageSelect.value = language;
+};
+
+el.languageSelect.addEventListener('change', () => {
+  const language = el.languageSelect.value;
+  applyLanguage(language);
+  try {
+    localStorage.setItem(LANGUAGE_KEY, language);
+  } catch (_error) {
+    // Not persisted; the choice still applies to this page.
+  }
+});
+
+applyLanguage(loadLanguage());
 
 const updateStatus = (serial) => {
   if (!serial) return;
