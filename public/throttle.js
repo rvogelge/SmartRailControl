@@ -4,7 +4,7 @@
 const $ = (id) => document.getElementById(id);
 
 const FUNCTION_COUNT = 4;
-const POSITION_KEY = 'birdrail.throttlePosition';
+const POSITION_KEY = 'smartrailcontrol.throttlePosition';
 
 const el = {
   window: $('throttleWindow'),
@@ -81,7 +81,7 @@ const api = async (url, options = {}) => {
 };
 
 const reportStatus = (status) => {
-  if (window.BirdRail && window.BirdRail.updateStatus) window.BirdRail.updateStatus(status);
+  if (window.SmartRailControl && window.SmartRailControl.updateStatus) window.SmartRailControl.updateStatus(status);
 };
 
 /* ---------- Persistence ---------- */

@@ -1,5 +1,5 @@
 {
-  "name": "bird_rail",
+  "name": "smartrailcontrol",
   "version": "1.0.0",
   "private": true,
   "description": "Web interface for controlling a model railway locomotive via an Intellibox serial connection.",

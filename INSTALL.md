@@ -1,6 +1,6 @@
-# BirdRail installation guide
+# SmartRailControl installation guide
 
-This document explains how to install and run the BirdRail Raspberry Pi web app for controlling a model railway locomotive through an Intellibox first-generation command station connected via a USB serial adapter.
+This document explains how to install and run the SmartRailControl Raspberry Pi web app for controlling a model railway locomotive through an Intellibox first-generation command station connected via a USB serial adapter.
 
 ## Requirements
 
@@ -28,8 +28,8 @@ Clone the repository directly to the Raspberry Pi:
 
 ```bash
 cd ~
-git clone https://github.com/rvogelge/bird_rail.git
-cd bird_rail
+git clone https://github.com/rvogelge/SmartRailControl.git
+cd SmartRailControl
 ```
 
 If you already have the project files in a folder, you can copy them instead. In that case, make sure you are inside the project directory before continuing.
@@ -56,7 +56,7 @@ The usual port is:
 /dev/ttyUSB0
 ```
 
-If the port differs, use the actual port name instead. The Intellibox (1st generation) serial interface supports 2400–38400 baud with 8N2 and RTS/CTS handshake. BirdRail defaults to 19200 baud; set the same value in the Intellibox interface menu, with the protocol set to P50X.
+If the port differs, use the actual port name instead. The Intellibox (1st generation) serial interface supports 2400–38400 baud with 8N2 and RTS/CTS handshake. SmartRailControl defaults to 19200 baud; set the same value in the Intellibox interface menu, with the protocol set to P50X.
 
 ## 5. Start the app
 
@@ -76,7 +76,7 @@ The server starts on port 3000 by default.
 
 ## 5a. Deploy with Podman
 
-If you want to run BirdRail in a Podman container, build the image from the project directory and pass through the USB serial device from the host.
+If you want to run SmartRailControl in a Podman container, build the image from the project directory and pass through the USB serial device from the host.
 
 Create a `Containerfile` in the project root:
 
@@ -94,20 +94,20 @@ CMD ["npm", "start"]
 Then build the image explicitly from that file and verify it exists before starting the container:
 
 ```bash
-podman build -f Containerfile -t birdrail .
-podman images | grep birdrail
+podman build -f Containerfile -t smartrailcontrol .
+podman images | grep smartrailcontrol
 ```
 
 If the image is present, start the container:
 
 ```bash
 podman run --rm -d \
-  --name birdrail \
+  --name smartrailcontrol \
   -p 3000:3000 \
   --device /dev/ttyUSB0:/dev/ttyUSB0 \
   -e PORT=3000 \
   -e SERIAL_PORT=/dev/ttyUSB0 \
-  birdrail
+  smartrailcontrol
 ```
 
 If your adapter uses a different serial path, replace `/dev/ttyUSB0` with the proper device such as `/dev/ttyAMA0` or a `/dev/serial/by-id/...` path.
@@ -117,18 +117,18 @@ If your adapter uses a different serial path, replace `/dev/ttyUSB0` with the pr
 If you only want to test the layout and interface behavior in Podman without any USB serial hardware, disable the serial interface in the container:
 
 ```bash
-podman build -f Containerfile -t birdrail .
+podman build -f Containerfile -t smartrailcontrol .
 podman run --rm -d \
-  --name birdrail-layout \
+  --name smartrailcontrol-layout \
   -p 3000:3000 \
   -e PORT=3000 \
-  -e BIRDRAIL_SERIAL_DISABLED=true \
-  birdrail
+  -e SMARTRAILCONTROL_SERIAL_DISABLED=true \
+  smartrailcontrol
 ```
 
 This starts the web app in a layout-only mode. The page loads normally, but any locomotive command is rejected because no serial device is configured. This is useful for testing the interface, layout, and browser interactions without a USB adapter on the host.
 
-> If Podman tries to pull `docker.io/library/birdrail:latest`, the local image was not built successfully yet. Fix the build error first, then rerun the `podman run` command.
+> If Podman tries to pull `docker.io/library/smartrailcontrol:latest`, the local image was not built successfully yet. Fix the build error first, then rerun the `podman run` command.
 
 If you see `Error: stat /dev/ttyUSB0: no such file or directory`, the host does not have that serial device at that exact path. Check the device on the host before starting the container:
 
@@ -138,7 +138,7 @@ ls -l /dev/ttyUSB* /dev/ttyAMA* /dev/serial/by-id/*
 
 If no device appears, reconnect the USB serial adapter or use the actual path reported by the system, such as `/dev/ttyAMA0` or a symlink under `/dev/serial/by-id`.
 
-For Podman on macOS, note that USB serial devices are usually not directly exposed from the Mac host into the Podman VM. In practice, a reliable Podman deployment of BirdRail is best on a Linux host with direct access to the USB serial adapter.
+For Podman on macOS, note that USB serial devices are usually not directly exposed from the Mac host into the Podman VM. In practice, a reliable Podman deployment of SmartRailControl is best on a Linux host with direct access to the USB serial adapter.
 
 If you are using a rootless Podman setup, make sure the user has access to the serial device and that the device node is available inside the container. The app should then be reachable at:
 

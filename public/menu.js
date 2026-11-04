@@ -25,7 +25,7 @@ button.addEventListener('click', () => (menu.hidden ? open() : close()));
 menu.addEventListener('click', (event) => {
   const item = event.target.closest('[data-action]');
   if (!item) return;
-  const action = window.BirdRail && window.BirdRail[item.dataset.action];
+  const action = window.SmartRailControl && window.SmartRailControl[item.dataset.action];
   close();
   if (typeof action !== 'function') return; // Not on the main page: follow the link.
   event.preventDefault();

@@ -6,20 +6,20 @@ const path = require('path');
 const SettingsStore = require('../settingsStore');
 const DataLocation = require('../dataLocation');
 
-const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'birdrail-loc-'));
+const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'smartrailcontrol-loc-'));
 
 // Point the location pointer at a temp file so tests never touch the real data/ folder.
 const withPointer = (fn) => {
-  const saved = { file: process.env.BIRDRAIL_SETTINGS_FILE, pointer: process.env.BIRDRAIL_LOCATION_FILE };
-  delete process.env.BIRDRAIL_SETTINGS_FILE;
-  process.env.BIRDRAIL_LOCATION_FILE = path.join(tmpDir(), 'location.json');
+  const saved = { file: process.env.SMARTRAILCONTROL_SETTINGS_FILE, pointer: process.env.SMARTRAILCONTROL_LOCATION_FILE };
+  delete process.env.SMARTRAILCONTROL_SETTINGS_FILE;
+  process.env.SMARTRAILCONTROL_LOCATION_FILE = path.join(tmpDir(), 'location.json');
   try {
-    return fn(process.env.BIRDRAIL_LOCATION_FILE);
+    return fn(process.env.SMARTRAILCONTROL_LOCATION_FILE);
   } finally {
-    if (saved.file === undefined) delete process.env.BIRDRAIL_SETTINGS_FILE;
-    else process.env.BIRDRAIL_SETTINGS_FILE = saved.file;
-    if (saved.pointer === undefined) delete process.env.BIRDRAIL_LOCATION_FILE;
-    else process.env.BIRDRAIL_LOCATION_FILE = saved.pointer;
+    if (saved.file === undefined) delete process.env.SMARTRAILCONTROL_SETTINGS_FILE;
+    else process.env.SMARTRAILCONTROL_SETTINGS_FILE = saved.file;
+    if (saved.pointer === undefined) delete process.env.SMARTRAILCONTROL_LOCATION_FILE;
+    else process.env.SMARTRAILCONTROL_LOCATION_FILE = saved.pointer;
   }
 };
 
@@ -62,9 +62,9 @@ test('resolve: environment, chosen folder, default', () => {
     DataLocation.remember(DataLocation.DEFAULT_DIR);
     assert.equal(fs.existsSync(pointer), false, 'the default folder needs no pointer');
 
-    process.env.BIRDRAIL_SETTINGS_FILE = '/somewhere/settings.json';
+    process.env.SMARTRAILCONTROL_SETTINGS_FILE = '/somewhere/settings.json';
     assert.deepEqual(DataLocation.resolve(), { file: '/somewhere/settings.json', source: 'env' });
-    assert.throws(() => DataLocation.prepare(tmpDir()), /BIRDRAIL_SETTINGS_FILE/);
+    assert.throws(() => DataLocation.prepare(tmpDir()), /SMARTRAILCONTROL_SETTINGS_FILE/);
   });
 });
 

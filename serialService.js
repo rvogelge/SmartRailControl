@@ -74,8 +74,8 @@ const clampSpeed = (speed) => Math.max(0, Math.min(MAX_SPEED, Math.round(Number(
 
 class SerialService {
   constructor(portName, baudRate = Number(process.env.SERIAL_BAUD_RATE || DEFAULT_BAUD_RATE)) {
-    const serialDisabledValue = String(process.env.BIRDRAIL_SERIAL_DISABLED ?? '').toLowerCase();
-    const serialEnabledValue = String(process.env.BIRDRAIL_SERIAL_ENABLED ?? '').toLowerCase();
+    const serialDisabledValue = String(process.env.SMARTRAILCONTROL_SERIAL_DISABLED ?? '').toLowerCase();
+    const serialEnabledValue = String(process.env.SMARTRAILCONTROL_SERIAL_ENABLED ?? '').toLowerCase();
 
     this.disabled = ['1', 'true', 'yes', 'on'].includes(serialDisabledValue) || (
       serialDisabledValue === '' &&
@@ -97,7 +97,7 @@ class SerialService {
     this.rxBuffer = [];
     this.pendingReplies = []; // FIFO: the Intellibox answers commands in order
     if (this.disabled) {
-      console.log('Serial interface disabled via BIRDRAIL_SERIAL_DISABLED. Running in layout-only mode.');
+      console.log('Serial interface disabled via SMARTRAILCONTROL_SERIAL_DISABLED. Running in layout-only mode.');
       return;
     }
     this.connect();

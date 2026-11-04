@@ -76,8 +76,8 @@ const toolLabel = (id) => (ELEMENTS[id] ? I18n.label(id) : tr(`tool.${id}`));
 const ZOOM_MIN = 16;
 const ZOOM_MAX = 140;
 const ZOOM_STEP = 1.25;
-const ZOOM_KEY = 'birdrail.layoutZoom';
-const MODE_KEY = 'birdrail.layoutMode';
+const ZOOM_KEY = 'smartrailcontrol.layoutZoom';
+const MODE_KEY = 'smartrailcontrol.layoutMode';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -794,9 +794,9 @@ const setMode = (mode) => {
 };
 
 // Menu entries of the top bar (menu.js).
-window.BirdRail = window.BirdRail || {};
-window.BirdRail.edit = () => setMode('edit');
-window.BirdRail.run = () => setMode('run');
+window.SmartRailControl = window.SmartRailControl || {};
+window.SmartRailControl.edit = () => setMode('edit');
+window.SmartRailControl.run = () => setMode('run');
 
 // Sends the operation to the server, which switches the decoder(s) on the Intellibox.
 const sendOperation = async (tile, newState, label) => {
@@ -897,7 +897,7 @@ const pollLive = async () => {
 };
 
 const openRulesWindow = () => {
-  const win = window.open('/rules.html', 'birdrail-rules', 'popup,width=1180,height=820');
+  const win = window.open('/rules.html', 'smartrailcontrol-rules', 'popup,width=1180,height=820');
   if (win) win.focus();
   else location.href = '/rules.html'; // Popups blocked: open it here instead.
 };

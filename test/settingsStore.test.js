@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const SettingsStore = require('../settingsStore');
 
-const tmpFile = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'birdrail-')), 'settings.json');
+const tmpFile = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'smartrailcontrol-')), 'settings.json');
 
 test('creates a default controller when no settings file exists', () => {
   const store = new SettingsStore(tmpFile());

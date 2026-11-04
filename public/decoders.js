@@ -5,7 +5,7 @@
 const tr = (key, vars) => I18n.t(key, vars);
 const $ = (id) => document.getElementById(id);
 
-const RANGE_KEY = 'birdrail.decoderRange';
+const RANGE_KEY = 'smartrailcontrol.decoderRange';
 const MAX_ROWS = 256;
 const MAX_ADDRESS = { P50X: 2047, P50: 256 };
 

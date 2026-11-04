@@ -207,7 +207,7 @@ const sanitizeController = (input) => {
 };
 
 class SettingsStore {
-  constructor(filePath = process.env.BIRDRAIL_SETTINGS_FILE || DEFAULT_FILE) {
+  constructor(filePath = process.env.SMARTRAILCONTROL_SETTINGS_FILE || DEFAULT_FILE) {
     this.filePath = filePath;
     this.data = this.load();
   }

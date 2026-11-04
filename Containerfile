@@ -4,6 +4,6 @@ COPY package*.json ./
 RUN npm install --omit=dev
 COPY . .
 ENV PORT=3000
-ENV BIRDRAIL_SERIAL_DISABLED=true
+ENV SMARTRAILCONTROL_SERIAL_DISABLED=true
 EXPOSE 3000
 CMD ["npm", "start"]

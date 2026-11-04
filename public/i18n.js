@@ -7,7 +7,22 @@
 // Scripts:       t('key', { vars }) · I18n.label(type) · I18n.stateLabel(type, state)
 // Pages listen for the 'languagechange' event on window to re-render.
 (function () {
-  const STORAGE_KEY = 'birdrail.language';
+  // The app was called BirdRail before: move this browser's remembered settings
+  // (language, zoom, mode, window position, decoder range) to the new key names once.
+  // This file is loaded first on every page, so it runs before anything reads them.
+  try {
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith('birdrail.'))
+      .forEach((key) => {
+        const renamed = `smartrailcontrol.${key.slice('birdrail.'.length)}`;
+        if (localStorage.getItem(renamed) === null) localStorage.setItem(renamed, localStorage.getItem(key));
+        localStorage.removeItem(key);
+      });
+  } catch (_error) {
+    // Storage unavailable: nothing to move.
+  }
+
+  const STORAGE_KEY = 'smartrailcontrol.language';
   const LANGUAGES = { en: 'English', de: 'Deutsch' };
 
   const plural = (one, other) => ({ n }) => (Number(n) === 1 ? one : other).replace('{n}', n);
@@ -19,7 +34,7 @@
       'menu.layout': 'Layout',
       'menu.run': 'Run',
       'menu.decoders': 'Decoder test',
-      'title.decoders': 'BirdRail – Decoder test',
+      'title.decoders': 'SmartRailControl – Decoder test',
       'dec.title': 'Decoder test',
       'dec.heading': 'Accessory decoders',
       'dec.hint': 'Accessory decoders only receive commands, so the Intellibox cannot tell which ones are connected. Switch an address with <strong>Red</strong> or <strong>Green</strong>, watch which turnout, signal or uncoupler moves, and write it down in the note.',
@@ -51,9 +66,9 @@
       'common.cancel': 'Cancel',
       'common.apply': 'Apply',
       'common.close': 'Close',
-      'title.control': 'BirdRail',
-      'title.layout': 'BirdRail – Track layout',
-      'title.rules': 'BirdRail – Logic rules',
+      'title.control': 'SmartRailControl',
+      'title.layout': 'SmartRailControl – Track layout',
+      'title.rules': 'SmartRailControl – Logic rules',
 
       // Control page
       'ctl.controllers': 'Controllers',
@@ -120,23 +135,23 @@
       'set.dataHint': 'Controllers, track layout, logic rules and these settings are kept in one file.',
       'set.dataFile': 'Data file',
       'set.dataChange': 'Change folder…',
-      'set.dataEnv': 'Set by BIRDRAIL_SETTINGS_FILE. Remove that variable to choose a folder here.',
+      'set.dataEnv': 'Set by SMARTRAILCONTROL_SETTINGS_FILE. Remove that variable to choose a folder here.',
       'set.persist.disk': 'Stored on disk: kept across restarts.',
       'set.persist.volume': 'On a mounted volume ({mount}): kept when the container is re-created.',
       'set.persist.container-layer': 'Inside the container only: lost when the container is removed. Mount a volume and choose a folder on it.',
       'set.persist.tmpfs': 'In memory (tmpfs): lost on restart.',
       'set.persist.unknown': 'Cannot tell whether this folder is persistent.',
-      'set.notWritable': 'BirdRail cannot write to this folder.',
-      'set.pointerWarn': 'The chosen folder is remembered in {file}, which is not persistent. After the container is re-created BirdRail starts from the default folder again. Mount a volume at {dir} or set BIRDRAIL_SETTINGS_FILE.',
+      'set.notWritable': 'SmartRailControl cannot write to this folder.',
+      'set.pointerWarn': 'The chosen folder is remembered in {file}, which is not persistent. After the container is re-created SmartRailControl starts from the default folder again. Mount a volume at {dir} or set SMARTRAILCONTROL_SETTINGS_FILE.',
       'set.folder': 'Folder',
       'set.up': '↑ Up',
       'set.upTitle': 'Parent folder',
       'set.open': 'Open',
       'set.useFolder': 'Use this folder',
       'set.noSubfolders': 'No sub-folders.',
-      'set.hasData': 'Contains BirdRail data (settings.json).',
+      'set.hasData': 'Contains SmartRailControl data (settings.json).',
       'set.newFolderHint': 'Type a path that does not exist yet to create a new folder.',
-      'set.exists': 'This folder already contains BirdRail data ({file}). What should happen?',
+      'set.exists': 'This folder already contains SmartRailControl data ({file}). What should happen?',
       'set.loadExisting': 'Load the data from there',
       'set.overwrite': 'Overwrite it with the current data',
       'set.moved': 'Data is now stored in {dir}. The previous file was left in place.',
@@ -324,7 +339,7 @@
       'menu.layout': 'Gleisplan',
       'menu.run': 'Betrieb',
       'menu.decoders': 'Decodertest',
-      'title.decoders': 'BirdRail – Decodertest',
+      'title.decoders': 'SmartRailControl – Decodertest',
       'dec.title': 'Decodertest',
       'dec.heading': 'Magnetartikeldecoder',
       'dec.hint': 'Magnetartikeldecoder empfangen nur Befehle, deshalb kann die Intellibox nicht feststellen, welche angeschlossen sind. Schalte eine Adresse mit <strong>Rot</strong> oder <strong>Grün</strong>, beobachte, welche Weiche, welches Signal oder welcher Entkuppler sich bewegt, und trage es in die Notiz ein.',
@@ -356,9 +371,9 @@
       'common.cancel': 'Abbrechen',
       'common.apply': 'Übernehmen',
       'common.close': 'Schließen',
-      'title.control': 'BirdRail',
-      'title.layout': 'BirdRail – Gleisplan',
-      'title.rules': 'BirdRail – Logikregeln',
+      'title.control': 'SmartRailControl',
+      'title.layout': 'SmartRailControl – Gleisplan',
+      'title.rules': 'SmartRailControl – Logikregeln',
 
       'ctl.controllers': 'Fahrregler',
       'ctl.add': '+ Neu',
@@ -423,23 +438,23 @@
       'set.dataHint': 'Fahrregler, Gleisplan, Logikregeln und diese Einstellungen liegen in einer Datei.',
       'set.dataFile': 'Datendatei',
       'set.dataChange': 'Ordner ändern…',
-      'set.dataEnv': 'Durch BIRDRAIL_SETTINGS_FILE festgelegt. Entferne diese Variable, um hier einen Ordner zu wählen.',
+      'set.dataEnv': 'Durch SMARTRAILCONTROL_SETTINGS_FILE festgelegt. Entferne diese Variable, um hier einen Ordner zu wählen.',
       'set.persist.disk': 'Auf der Festplatte: bleibt bei Neustarts erhalten.',
       'set.persist.volume': 'Auf einem eingebundenen Volume ({mount}): bleibt erhalten, wenn der Container neu erstellt wird.',
       'set.persist.container-layer': 'Nur im Container: geht verloren, wenn der Container entfernt wird. Binde ein Volume ein und wähle einen Ordner darauf.',
       'set.persist.tmpfs': 'Im Arbeitsspeicher (tmpfs): geht beim Neustart verloren.',
       'set.persist.unknown': 'Es lässt sich nicht feststellen, ob dieser Ordner dauerhaft ist.',
-      'set.notWritable': 'BirdRail kann in diesen Ordner nicht schreiben.',
-      'set.pointerWarn': 'Der gewählte Ordner wird in {file} vermerkt, und diese Datei ist nicht dauerhaft. Nach dem Neuerstellen des Containers startet BirdRail wieder mit dem Standardordner. Binde ein Volume unter {dir} ein oder setze BIRDRAIL_SETTINGS_FILE.',
+      'set.notWritable': 'SmartRailControl kann in diesen Ordner nicht schreiben.',
+      'set.pointerWarn': 'Der gewählte Ordner wird in {file} vermerkt, und diese Datei ist nicht dauerhaft. Nach dem Neuerstellen des Containers startet SmartRailControl wieder mit dem Standardordner. Binde ein Volume unter {dir} ein oder setze SMARTRAILCONTROL_SETTINGS_FILE.',
       'set.folder': 'Ordner',
       'set.up': '↑ Nach oben',
       'set.upTitle': 'Übergeordneter Ordner',
       'set.open': 'Öffnen',
       'set.useFolder': 'Diesen Ordner verwenden',
       'set.noSubfolders': 'Keine Unterordner.',
-      'set.hasData': 'Enthält BirdRail-Daten (settings.json).',
+      'set.hasData': 'Enthält SmartRailControl-Daten (settings.json).',
       'set.newFolderHint': 'Gib einen noch nicht vorhandenen Pfad ein, um einen neuen Ordner anzulegen.',
-      'set.exists': 'In diesem Ordner liegen bereits BirdRail-Daten ({file}). Was soll passieren?',
+      'set.exists': 'In diesem Ordner liegen bereits SmartRailControl-Daten ({file}). Was soll passieren?',
       'set.loadExisting': 'Daten von dort laden',
       'set.overwrite': 'Mit den aktuellen Daten überschreiben',
       'set.moved': 'Die Daten liegen jetzt in {dir}. Die bisherige Datei bleibt erhalten.',

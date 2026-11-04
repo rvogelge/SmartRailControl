@@ -7,9 +7,9 @@ const FeedbackPoller = require('../feedbackPoller');
 // "Intellibox" answers; they are delivered in small chunks to test reassembly.
 const fakeIntellibox = (respond, protocol) => {
   if (protocol) process.env.INTELLIBOX_PROTOCOL = protocol;
-  process.env.BIRDRAIL_SERIAL_DISABLED = '1';
+  process.env.SMARTRAILCONTROL_SERIAL_DISABLED = '1';
   const service = new SerialService('/dev/null');
-  delete process.env.BIRDRAIL_SERIAL_DISABLED;
+  delete process.env.SMARTRAILCONTROL_SERIAL_DISABLED;
   delete process.env.INTELLIBOX_PROTOCOL;
   service.disabled = false;
   const written = [];

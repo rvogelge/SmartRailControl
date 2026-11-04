@@ -27,7 +27,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/status', (_req, res) => {
   res.json({
-    app: 'bird_rail',
+    app: 'SmartRailControl',
     serial: serialService.getStatus()
   });
 });
@@ -384,6 +384,6 @@ app.get('*', (_req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`BirdRail is running at http://localhost:${PORT}`);
+  console.log(`SmartRailControl is running at http://localhost:${PORT}`);
   console.log(`Serial port configured: ${serialService.getStatus().port}`);
 });

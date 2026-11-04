@@ -1,20 +1,20 @@
 const fs = require('fs');
 const path = require('path');
 
-// Where BirdRail keeps settings.json (controllers, layout, rules, language).
+// Where SmartRailControl keeps settings.json (controllers, layout, rules, language).
 //
-// 1. BIRDRAIL_SETTINGS_FILE (environment) — fixed by the deployment, cannot be changed in the UI.
+// 1. SMARTRAILCONTROL_SETTINGS_FILE (environment) — fixed by the deployment, cannot be changed in the UI.
 // 2. A folder chosen in the settings dialog — remembered in data/location.json next to the app.
 // 3. Default: data/ next to the app.
 const DEFAULT_DIR = path.join(__dirname, 'data');
 const SETTINGS_NAME = 'settings.json';
 const MAX_DIRS = 500;
 
-const pointerFile = () => process.env.BIRDRAIL_LOCATION_FILE || path.join(DEFAULT_DIR, 'location.json');
+const pointerFile = () => process.env.SMARTRAILCONTROL_LOCATION_FILE || path.join(DEFAULT_DIR, 'location.json');
 
 const resolve = () => {
-  if (process.env.BIRDRAIL_SETTINGS_FILE) {
-    return { file: path.resolve(process.env.BIRDRAIL_SETTINGS_FILE), source: 'env' };
+  if (process.env.SMARTRAILCONTROL_SETTINGS_FILE) {
+    return { file: path.resolve(process.env.SMARTRAILCONTROL_SETTINGS_FILE), source: 'env' };
   }
   try {
     const { dir } = JSON.parse(fs.readFileSync(pointerFile(), 'utf8'));
@@ -132,10 +132,10 @@ const safeIsDir = (p) => {
 };
 
 // Prepares `dir` as the new location. Returns { file, exists }. Creates the folder if
-// needed and checks that BirdRail can write there.
+// needed and checks that SmartRailControl can write there.
 const prepare = (input) => {
-  if (process.env.BIRDRAIL_SETTINGS_FILE) {
-    throw new Error('The data location is set by BIRDRAIL_SETTINGS_FILE. Remove that variable to choose it here.');
+  if (process.env.SMARTRAILCONTROL_SETTINGS_FILE) {
+    throw new Error('The data location is set by SMARTRAILCONTROL_SETTINGS_FILE. Remove that variable to choose it here.');
   }
   const dir = normalizeDir(input);
   try {
@@ -144,12 +144,12 @@ const prepare = (input) => {
     throw new Error(`Cannot create ${dir}: ${error.code || error.message}`);
   }
   if (!safeIsDir(dir)) throw new Error(`${dir} is not a folder.`);
-  const probe = path.join(dir, `.birdrail-write-test-${process.pid}`);
+  const probe = path.join(dir, `.smartrailcontrol-write-test-${process.pid}`);
   try {
     fs.writeFileSync(probe, '');
     fs.unlinkSync(probe);
   } catch (error) {
-    throw new Error(`BirdRail cannot write to ${dir}: ${error.code || error.message}`);
+    throw new Error(`SmartRailControl cannot write to ${dir}: ${error.code || error.message}`);
   }
   const file = path.join(dir, SETTINGS_NAME);
   return { dir, file, exists: fs.existsSync(file) };

@@ -302,9 +302,9 @@ el.serialForm.addEventListener('submit', async (event) => {
 
 /* ---------- Startup ---------- */
 
-window.BirdRail = window.BirdRail || {};
-window.BirdRail.settings = openSettings;
-window.BirdRail.updateStatus = updateStatus;
+window.SmartRailControl = window.SmartRailControl || {};
+window.SmartRailControl.settings = openSettings;
+window.SmartRailControl.updateStatus = updateStatus;
 
 window.addEventListener('languagechange', () => {
   updateStatus(state.serial);

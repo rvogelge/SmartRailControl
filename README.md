@@ -1,6 +1,6 @@
-# BirdRail
+# SmartRailControl
 
-BirdRail is a small Raspberry Pi web app for controlling a model railway locomotive connected to an Intellibox first generation command station via a USB serial adapter.
+SmartRailControl is a small Raspberry Pi web app for controlling a model railway locomotive connected to an Intellibox first generation command station via a USB serial adapter.
 
 ## Features
 
@@ -24,7 +24,7 @@ BirdRail is a small Raspberry Pi web app for controlling a model railway locomot
 ## Install
 
 ```bash
-cd ~/bird_rail
+cd ~/SmartRailControl
 npm install
 ```
 
@@ -78,14 +78,14 @@ Open it with **Settings** in the burger menu (or click the status chip).
   - *inside the container only* — lost when the container is removed (shown in orange),
   - *in memory (tmpfs)* — lost on restart.
 
-  *Change folder…* opens a folder browser on the server. Pick a folder or type a new path (it is created) and click *Use this folder*: the current data is copied there and used from then on; the old file stays where it was. If the folder already contains BirdRail data, you choose between *Load the data from there* (the page reloads with that data) and *Overwrite it with the current data*.
+  *Change folder…* opens a folder browser on the server. Pick a folder or type a new path (it is created) and click *Use this folder*: the current data is copied there and used from then on; the old file stays where it was. If the folder already contains SmartRailControl data, you choose between *Load the data from there* (the page reloads with that data) and *Overwrite it with the current data*.
 
-  The chosen folder is remembered in `data/location.json` next to the app. `BIRDRAIL_SETTINGS_FILE` overrides everything; the dialog then shows the path but cannot change it.
+  The chosen folder is remembered in `data/location.json` next to the app. `SMARTRAILCONTROL_SETTINGS_FILE` overrides everything; the dialog then shows the path but cannot change it.
 
 **Containers:** to keep the data, mount a volume — either at `/app/data` (then the default folder is already persistent), or anywhere else and choose it in the dialog. In the second case `/app/data` must be persistent too, because that is where the choice is remembered; the dialog warns if it is not. The simplest setup is:
 
 ```bash
-podman run -d --name birdrail -p 3000:3000 -v birdrail-data:/app/data birdrail
+podman run -d --name smartrailcontrol -p 3000:3000 -v smartrailcontrol-data:/app/data smartrailcontrol
 ```
 
 ## App behavior
