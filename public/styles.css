@@ -582,8 +582,16 @@ button:disabled {
 .layout-editor {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
+  /* Cards keep their own height; layout.js gives the palette card the layout card's height. */
+  align-items: start;
   gap: 20px;
   padding: 24px 20px 40px;
+}
+
+/* The element card scrolls (elements first, then the help text), so the page fits the window. */
+.palette-card {
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .palette {

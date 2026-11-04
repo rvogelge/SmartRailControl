@@ -84,6 +84,7 @@ const ui = {
   palette: $('palette'),
   board: $('board'),
   boardCard: document.querySelector('.board-card'),
+  paletteCard: document.querySelector('.palette-card'),
   boardScroll: document.querySelector('.board-scroll'),
   gridRect: $('gridRect'),
   tiles: $('tilesLayer'),
@@ -365,8 +366,22 @@ const paneHeight = () => {
 
 // The grid fills the pane at the current zoom: zooming out shows more squares, zooming in
 // fewer. It never gets smaller than the placed elements need; then the pane scrolls.
+// Side by side (wide window, edit mode) the palette card ends where the layout card ends,
+// and its element list scrolls. On phones it sits above the layout at its natural height.
+const SIDE_BY_SIDE = window.matchMedia('(min-width: 761px)');
+const sizePalette = () => {
+  if (!ui.paletteCard) return;
+  if (SIDE_BY_SIDE.matches && state.mode === 'edit') {
+    const top = ui.paletteCard.getBoundingClientRect().top;
+    ui.paletteCard.style.height = `${Math.round(ui.boardCard.getBoundingClientRect().bottom - top)}px`;
+  } else {
+    ui.paletteCard.style.height = '';
+  }
+};
+
 const updateGrid = () => {
   ui.boardScroll.style.height = `${paneHeight()}px`;
+  sizePalette();
   const used = extent();
   const visibleCols = Math.floor(ui.boardScroll.clientWidth / state.zoom);
   const visibleRows = Math.floor(ui.boardScroll.clientHeight / state.zoom);
