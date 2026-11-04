@@ -215,6 +215,7 @@ const feedback = new FeedbackPoller({
     const tiles = contactTiles().filter((t) => contactNumber(t) === contact);
     if (!initial) console.log(`[s88] contact ${contact} ${on ? 'on' : 'off'}${tiles.length ? '' : ' (no contact track with this number)'}`);
     tiles.forEach((tile) => {
+      ruleEngine.cancelPulse(tile.id);
       if (initial) {
         ruleEngine.syncSensor(tile.id, on);
       } else {
@@ -252,11 +253,17 @@ app.post('/api/layout/operate', async (req, res) => {
   }
 });
 
-// Contact track switched by hand (run mode, rules window) to test rules without a train.
+// Contact track pressed by hand (run mode, rules window) to test rules without a train:
+// { id, pulse: true } turns it on for 2 s, then off again. { id, active } sets it.
 // Real contacts come from the s88 feedback modules. Matching rules run.
 app.post('/api/sensors', (req, res) => {
-  const { id, active } = req.body || {};
+  const { id, active, pulse } = req.body || {};
   try {
+    if (pulse) {
+      const { changed, fired, pulseMs } = ruleEngine.pulseSensor(String(id || ''));
+      return res.json({ ok: true, changed, fired, active: true, pulseMs });
+    }
+    ruleEngine.cancelPulse(String(id || ''));
     const { changed, fired } = ruleEngine.setSensor(String(id || ''), active);
     return res.json({ ok: true, changed, fired, active: Boolean(active) });
   } catch (error) {

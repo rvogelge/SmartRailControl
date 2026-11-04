@@ -106,3 +106,30 @@ test('sanitizeRules checks kinds and states of existing elements', () => {
   const dangling = SettingsStore.sanitizeRules([rule({ actions: [{ device: 'gone', state: 'go' }] })], tiles);
   assert.equal(dangling[0].actions[0].device, 'gone');
 });
+
+test('a manual press turns the contact on, then off again after the pulse time', async () => {
+  const offRule = rule({ id: 'off', trigger: { device: 'c1', state: 'off' }, actions: [{ device: 's1', state: 'stop', delay: 0 }] });
+  const { engine, calls } = setup([rule(), offRule]);
+  const pressed = engine.pulseSensor('c1', 30);
+  await pressed.done;
+  assert.deepEqual(pressed.fired, ['r1']);
+  assert.deepEqual(engine.getLive().sensors, { c1: true });
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  engine.pulseSensor('c1', 30); // pressed again: still on, time restarts, no second "on"
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual(engine.getLive().sensors, { c1: true });
+
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.deepEqual(engine.getLive().sensors, {});
+  assert.deepEqual(calls, [['t1', 'diverging'], ['s1', 'stop']]);
+});
+
+test('a real contact report cancels a running press', async () => {
+  const { engine } = setup([]);
+  engine.pulseSensor('c1', 30);
+  engine.cancelPulse('c1');
+  engine.setSensor('c1', true); // the s88 module says: occupied
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(engine.getLive().sensors, { c1: true });
+});

@@ -1,6 +1,8 @@
 const TrackCatalog = require('./public/trackCatalog');
 
 const MAX_LOG = 50;
+// A contact pressed by hand stays on this long, then turns off again (like a passing train).
+const PULSE_MS = 2000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Runs the logic rules. Sensors (contact tracks) report on/off; when a sensor changes,
@@ -18,6 +20,7 @@ class RuleEngine {
     this.operate = operate;
     this.wait = wait;
     this.sensors = new Map(); // tile id -> true (on) / false (off)
+    this.pulses = new Map(); // tile id -> timer of a manual press
     this.log = [];
     this.logSeq = 0;
   }
@@ -57,6 +60,26 @@ class RuleEngine {
     const fired = rules.filter((rule) => this.conditionsHold(rule));
     const done = Promise.all(fired.map((rule) => this.run(rule)));
     return { changed, fired: fired.map((rule) => rule.id), done };
+  }
+
+  // Manual press: the contact turns on and, after `ms`, off again. Both changes run
+  // their rules. Pressing again while it is on restarts the time.
+  pulseSensor(id, ms = PULSE_MS) {
+    this.cancelPulse(id);
+    const result = this.setSensor(id, true);
+    const timer = setTimeout(() => {
+      this.pulses.delete(id);
+      this.setSensor(id, false);
+    }, ms);
+    if (timer.unref) timer.unref();
+    this.pulses.set(id, timer);
+    return { ...result, pulseMs: ms };
+  }
+
+  // A real contact report wins over a running manual press.
+  cancelPulse(id) {
+    clearTimeout(this.pulses.get(id));
+    this.pulses.delete(id);
   }
 
   // Takes over a sensor state without running rules (state at startup, layout changes).
@@ -119,5 +142,7 @@ class RuleEngine {
     };
   }
 }
+
+RuleEngine.PULSE_MS = PULSE_MS;
 
 module.exports = RuleEngine;

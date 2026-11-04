@@ -542,24 +542,24 @@ ui.addRule.addEventListener('click', () => {
 ui.deviceList.addEventListener('click', async (event) => {
   const sensorButton = event.target.closest('[data-sensor]');
   if (sensorButton) {
+    // A press: on for 2 s, then off again (the server keeps the time).
     const id = sensorButton.dataset.sensor;
-    const active = !state.live.sensors[id];
     const tile = tileById(id);
     try {
       const response = await fetch('/api/sensors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, active })
+        body: JSON.stringify({ id, pulse: true })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || tr('lay.rejected'));
-      if (active) state.live.sensors[id] = true;
-      else delete state.live.sensors[id];
+      state.live.sensors[id] = true;
       const fired = data.fired.length;
       const result = fired ? tr('rules.fired', { n: fired }) : tr('rules.noneFired');
-      setStatus(tr('rules.sensorResult', { name: deviceName(tile), state: tr(active ? 'sensor.on' : 'sensor.off'), result }), fired ? 'ok' : '');
+      setStatus(tr('rules.sensorPressed', { name: deviceName(tile), result }), fired ? 'ok' : '');
       renderDevices();
-      pollLive();
+      // The live poll shows it off again; poll right after the release for a prompt update.
+      setTimeout(pollLive, (data.pulseMs || 2000) + 100);
     } catch (error) {
       setStatus(tr('rules.sensorFailed', { msg: error.message }), 'error');
     }

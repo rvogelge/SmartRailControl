@@ -139,7 +139,7 @@ AND THEN set Signal #20 to go (green)       after 2 s
 - Rules that point at an element that was removed from the layout, or at a contact without a number, are marked in orange; the server skips the missing parts.
 - The **Activity** list shows what the rules did, including commands that could not be sent.
 
-**Sensors:** contact tracks follow the s88 feedback modules connected to the Intellibox (see *Feedback modules* below). The status at the top of the device list says whether they are read. You can also switch a contact by hand to test rules without a train: click it in run mode (it turns orange while on) or click its *on/off* chip in the rules window. Actions never change contacts, so rules cannot trigger each other in a loop.
+**Sensors:** contact tracks follow the s88 feedback modules connected to the Intellibox (see *Feedback modules* below). The status at the top of the device list says whether they are read. You can also press a contact by hand to test rules without a train: click it in run mode or click its *on/off* chip in the rules window. It works like a button, not a switch: the contact turns on (orange) for 2 seconds and then off again, so both the *turns on* and the *turns off* rules run, like a passing train. Pressing again while it is on restarts the 2 seconds; a report from the real s88 contact ends the press. Actions never change contacts, so rules cannot trigger each other in a loop.
 
 ## Feedback modules (s88)
 
@@ -173,7 +173,7 @@ In run mode, switching a turnout, three-way turnout, crossover switch or signal,
 | Crossover switch | straight → green, turning → red |
 | Uncoupler | short pulse on green |
 
-The new state is saved even if the command could not be sent (no address, serial port not open); the status line then says *not sent* and why. Each command and the Intellibox reply are logged in the terminal (`[Intellibox TX]` / `[Intellibox RX]`). Contact tracks are inputs and send nothing; clicking one in run mode switches it on/off by hand for testing the logic rules.
+The new state is saved even if the command could not be sent (no address, serial port not open); the status line then says *not sent* and why. Each command and the Intellibox reply are logged in the terminal (`[Intellibox TX]` / `[Intellibox RX]`). Contact tracks are inputs and send nothing; clicking one in run mode presses it for 2 seconds to test the logic rules.
 
 ## File overview
 

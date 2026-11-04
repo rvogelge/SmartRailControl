@@ -789,30 +789,39 @@ const operate = (tile) => {
     setStatus(tr('lay.sending', { label }));
     sendOperation(tile, undefined, label);
   } else if (tile.type === 'contact') {
-    toggleSensor(tile);
+    pressSensor(tile);
   }
 };
 
-// Contact tracks are inputs read from the s88 feedback modules. A click switches the
-// contact by hand (to test rules without a train); the server then runs the logic rules.
-const toggleSensor = async (tile) => {
-  const active = !state.sensors[tile.id];
-  const label = `${describe(tile)}: ${tr(active ? 'sensor.on' : 'sensor.off')}`;
-  if (active) state.sensors[tile.id] = true;
-  else delete state.sensors[tile.id];
+// Contact tracks are inputs read from the s88 feedback modules. A click is a button
+// press: the contact is on for 2 s, then off again (to test rules without a train).
+// The server keeps the time and runs the logic rules for both changes.
+const sensorTimers = new Map();
+const pressSensor = async (tile) => {
+  const label = describe(tile);
+  state.sensors[tile.id] = true;
   render();
   try {
     const response = await fetch('/api/sensors', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: tile.id, active })
+      body: JSON.stringify({ id: tile.id, pulse: true })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || tr('lay.rejected'));
     const fired = data.fired.length;
-    setStatus(`${label} — ${fired ? tr('rules.fired', { n: fired }) : tr('rules.noneFired')}.`, fired ? 'ok' : '');
-    pollLive();
+    setStatus(`${tr('lay.pressed', { label })} — ${fired ? tr('rules.fired', { n: fired }) : tr('rules.noneFired')}.`, fired ? 'ok' : '');
+    // Show it off again when the server releases it (the live poll confirms).
+    clearTimeout(sensorTimers.get(tile.id));
+    sensorTimers.set(tile.id, setTimeout(() => {
+      sensorTimers.delete(tile.id);
+      delete state.sensors[tile.id];
+      render();
+      pollLive();
+    }, data.pulseMs || 2000));
   } catch (error) {
+    delete state.sensors[tile.id];
+    render();
     setStatus(`${label} — ${error.message}`, 'error');
   }
 };
