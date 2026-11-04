@@ -119,10 +119,7 @@
 
         <section class="settings-section" aria-labelledby="languageHeading">
           <h3 id="languageHeading" data-i18n="set.language">Language</h3>
-          <div class="segmented language-switch" role="radiogroup" aria-labelledby="languageHeading" id="languageSwitch">
-            <button type="button" class="segment" role="radio" data-language="en" lang="en">English</button>
-            <button type="button" class="segment" role="radio" data-language="de" lang="de">Deutsch</button>
-          </div>
+          <select id="languageSelect" aria-labelledby="languageHeading"></select>
           <small class="section-hint" data-i18n="set.languageHint">Applies to all pages and all browsers.</small>
           <p id="languageMessage" class="response" aria-live="polite"></p>
         </section>

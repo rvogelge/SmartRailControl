@@ -1677,10 +1677,6 @@ body[data-mode='run'] .layout-editor {
   padding: 10px 16px;
 }
 
-.language-switch .segment {
-  padding: 8px 12px;
-}
-
 .storage-current {
   display: grid;
   gap: 6px;

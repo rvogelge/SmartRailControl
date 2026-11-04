@@ -26,7 +26,7 @@ const el = {
   infoLine: $('infoLine'),
   infoStatus: $('infoStatus'),
   settingsMessage: $('settingsMessage'),
-  languageSwitch: $('languageSwitch'),
+  languageSelect: $('languageSelect'),
   languageMessage: $('languageMessage'),
   storageFile: $('storageFile'),
   storagePersistence: $('storagePersistence'),
@@ -377,17 +377,26 @@ const openSettings = async () => {
 
 /* ---------- Language ---------- */
 
+// Options are named in their own language, so they read the same whichever language is active.
+el.languageSelect.replaceChildren(
+  ...Object.entries(I18n.LANGUAGES).map(([code, name]) => {
+    const option = document.createElement('option');
+    option.value = code;
+    option.lang = code;
+    option.textContent = name;
+    return option;
+  })
+);
+
 const renderLanguage = () => {
-  el.languageSwitch.querySelectorAll('[data-language]').forEach((button) => {
-    button.setAttribute('aria-checked', String(button.dataset.language === I18n.language));
-  });
+  el.languageSelect.value = I18n.language;
 };
 
-el.languageSwitch.addEventListener('click', async (event) => {
-  const button = event.target.closest('[data-language]');
-  if (!button || button.dataset.language === I18n.language) return;
+el.languageSelect.addEventListener('change', async () => {
+  const language = el.languageSelect.value;
+  if (language === I18n.language) return;
   try {
-    await I18n.saveLanguage(button.dataset.language);
+    await I18n.saveLanguage(language);
     setMessage(el.languageMessage, t('set.languageSaved'), 'ok');
   } catch (error) {
     setMessage(el.languageMessage, error.message, 'error');
