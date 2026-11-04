@@ -19,23 +19,29 @@
   // footprint: { size, cells } — an element occupies an size×size block; `cells`
   // lists the squares (at rotation 0) its track actually uses. Default: 1×1.
   const TYPES = {
-    straight: {},
-    diagonal: {},
-    'curve-45-left': {},
-    'curve-45-right': {},
-    curve: {},
-    'curve-r2': { footprint: { size: 2, cells: [[0, 0], [1, 0], [1, 1]] } },
+    straight: { label: 'Straight' },
+    diagonal: { label: 'Diagonal' },
+    'curve-45-left': { label: 'Curve 45° left' },
+    'curve-45-right': { label: 'Curve 45° right' },
+    curve: { label: 'Curve 90° R1' },
+    'curve-r2': { label: 'Curve 90° R2 (parallel)', footprint: { size: 2, cells: [[0, 0], [1, 0], [1, 1]] } },
     'turnout-left': {
+      label: 'Turnout left',
+      stateLabels: { straight: 'straight', diverging: 'diverging' },
       states: ['straight', 'diverging'],
       addresses: ['Turnout address'],
       commands: { straight: [[0, 'green']], diverging: [[0, 'red']] }
     },
     'turnout-right': {
+      label: 'Turnout right',
+      stateLabels: { straight: 'straight', diverging: 'diverging' },
       states: ['straight', 'diverging'],
       addresses: ['Turnout address'],
       commands: { straight: [[0, 'green']], diverging: [[0, 'red']] }
     },
     'turnout-3way': {
+      label: 'Three-way turnout',
+      stateLabels: { straight: 'straight', left: 'left', right: 'right' },
       states: ['straight', 'left', 'right'],
       addresses: ['Drive 1 (left)', 'Drive 2 (right)'],
       // Only one drive may be diverging: reset the other one first.
@@ -46,21 +52,38 @@
       }
     },
     'double-slip': {
+      label: 'Crossover switch',
+      stateLabels: { straight: 'straight', turn: 'turning' },
       states: ['straight', 'turn'],
       // Only two states, so both drives are wired to one decoder output.
       addresses: ['Crossover address'],
       commands: { straight: [[0, 'green']], turn: [[0, 'red']] }
     },
-    'crossing-45': {},
-    crossing: {},
-    buffer: {},
+    'crossing-45': { label: 'Crossing 45°' },
+    crossing: { label: 'Crossing 90°' },
+    buffer: { label: 'Buffer stop' },
     signal: {
+      label: 'Signal',
+      stateLabels: { stop: 'stop (red)', go: 'go (green)' },
       states: ['stop', 'go'],
       addresses: ['Signal address'],
       commands: { stop: [[0, 'red']], go: [[0, 'green']] }
     },
-    contact: { addresses: ['Contact no. (feedback)'], addressSpace: 'feedback' },
-    uncoupler: { addresses: ['Uncoupler address'], momentary: true, commands: { trigger: [[0, 'green']] } }
+    contact: {
+      label: 'Contact track',
+      addresses: ['Contact no. (feedback)'],
+      addressSpace: 'feedback',
+      // Input: occupied (on) / free (off). Not saved; reported at run time.
+      sensorStates: ['off', 'on'],
+      stateLabels: { on: 'on (occupied)', off: 'off (free)' }
+    },
+    uncoupler: {
+      label: 'Uncoupler',
+      stateLabels: { trigger: 'trigger' },
+      addresses: ['Uncoupler address'],
+      momentary: true,
+      commands: { trigger: [[0, 'green']] }
+    }
   };
 
   // Turnouts, signals and uncouplers share the accessory address range of the command
@@ -108,12 +131,37 @@
     });
   };
 
+  const statesOf = (type) => (TYPES[type] && TYPES[type].states) || null;
+  const sensorStatesOf = (type) => (TYPES[type] && TYPES[type].sensorStates) || null;
+  const isMomentary = (type) => Boolean(TYPES[type] && TYPES[type].momentary);
+
+  // Logic rules: what each element can be used for and which states apply.
+  // A sensor can start a rule, a condition can test any element with a state,
+  // an action can switch any element that has commands.
+  const ruleRoles = (type) => ({
+    trigger: Boolean(sensorStatesOf(type)),
+    condition: Boolean(sensorStatesOf(type) || statesOf(type)),
+    action: Boolean(statesOf(type) || isMomentary(type))
+  });
+  const conditionStates = (type) => sensorStatesOf(type) || statesOf(type) || [];
+  const actionStates = (type) => statesOf(type) || (isMomentary(type) ? ['trigger'] : []);
+  const labelOf = (type) => (TYPES[type] && TYPES[type].label) || type;
+  const stateLabel = (type, state) =>
+    (TYPES[type] && TYPES[type].stateLabels && TYPES[type].stateLabels[state]) || state;
+
   return {
     MAX_ADDRESS,
     ROTATIONS,
     TYPES,
     TYPE_NAMES: Object.keys(TYPES),
-    statesOf: (type) => (TYPES[type] && TYPES[type].states) || null,
+    statesOf,
+    sensorStatesOf,
+    isMomentary,
+    ruleRoles,
+    conditionStates,
+    actionStates,
+    labelOf,
+    stateLabel,
     addressSlots: (type) => (TYPES[type] && TYPES[type].addresses) || [],
     footprint,
     cellsOf,

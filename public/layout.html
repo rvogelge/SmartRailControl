@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-title-key="title.layout">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -17,54 +17,57 @@
       </div>
 
       <nav class="tabs" aria-label="Pages">
-        <a href="/">Control</a>
-        <a href="/layout.html" aria-current="page">Layout</a>
+        <a href="/" data-i18n="nav.control">Control</a>
+        <a href="/layout.html" aria-current="page" data-i18n="nav.layout">Layout</a>
       </nav>
 
       <div class="topbar-actions">
-        <span id="saveState" class="save-state" aria-live="polite">Saved</span>
+        <span id="saveState" class="save-state" aria-live="polite" data-i18n="common.saved">Saved</span>
       </div>
     </header>
 
     <main class="layout-editor">
-      <aside class="card palette-card" aria-label="Track elements">
+      <aside class="card palette-card" aria-label="Track elements" data-i18n-attr="aria-label:lay.elements">
         <div class="card-header">
-          <h2>Elements</h2>
+          <h2 data-i18n="lay.elements">Elements</h2>
         </div>
-        <ul id="palette" class="palette" role="listbox" aria-label="Select element"></ul>
-        <p class="hint">
+        <ul id="palette" class="palette" role="listbox" aria-label="Select element" data-i18n-attr="aria-label:lay.selectElement"></ul>
+        <p class="hint" data-i18n-html="lay.hint">
           Pick an element, then click a square to place it. Select an element to set its decoder address (double-click jumps to the field).<br />
           <kbd>Shift</kbd>/<kbd>Ctrl</kbd>-click or drag a frame to select several · <kbd>←↑→↓</kbd> move · <kbd>R</kbd> rotate · <kbd>Del</kbd> remove · <kbd>Ctrl</kbd>+<kbd>A</kbd> all · <kbd>Esc</kbd> select tool · <kbd>E</kbd> edit/run · <kbd>+</kbd>/<kbd>−</kbd>/<kbd>0</kbd> zoom/fit
         </p>
       </aside>
 
-      <section class="card board-card" aria-label="Layout pane">
+      <section class="card board-card" aria-label="Layout pane" data-i18n-attr="aria-label:lay.layoutPane">
         <div class="toolbar">
-          <div class="segmented mode-switch" role="radiogroup" aria-label="Mode">
-            <button type="button" class="segment" data-mode="edit" role="radio" aria-checked="true" title="Edit layout (E)">✎ Edit</button>
-            <button type="button" class="segment" data-mode="run" role="radio" aria-checked="false" title="Run mode (E)">▶ Run</button>
+          <div class="segmented mode-switch" role="radiogroup" aria-label="Mode" data-i18n-attr="aria-label:lay.mode">
+            <button type="button" class="segment" data-mode="edit" role="radio" aria-checked="true" title="Edit layout (E)" data-i18n="lay.edit" data-i18n-attr="title:lay.editTitle">✎ Edit</button>
+            <button type="button" class="segment" data-mode="run" role="radio" aria-checked="false" title="Run mode (E)" data-i18n="lay.run" data-i18n-attr="title:lay.runTitle">▶ Run</button>
           </div>
           <div class="toolbar-group edit-only">
-            <button type="button" id="rotateButton" class="ghost small" title="Rotate (R)">⟳ Rotate</button>
-            <button type="button" id="deleteButton" class="ghost small danger-text" title="Remove (Del)">Remove</button>
-            <button type="button" id="checkButton" class="ghost small check-button" aria-controls="issuesPanel" title="Check decoder addresses">✓ Check</button>
+            <button type="button" id="rotateButton" class="ghost small" data-i18n="lay.rotate" data-i18n-attr="title:lay.rotateTitle">⟳ Rotate</button>
+            <button type="button" id="deleteButton" class="ghost small danger-text" data-i18n-attr="title:lay.removeTitle">Remove</button>
+            <button type="button" id="checkButton" class="ghost small check-button" aria-controls="issuesPanel" data-i18n-attr="title:lay.checkTitle">✓ Check</button>
           </div>
-          <div class="toolbar-group zoom-group" role="group" aria-label="Zoom">
-            <button type="button" id="zoomOut" class="ghost small icon-text" title="Zoom out (−)" aria-label="Zoom out">−</button>
+          <div class="toolbar-group">
+            <button type="button" id="rulesButton" class="ghost small" data-i18n="lay.rules" data-i18n-attr="title:lay.rulesTitle">⚡ Logic rules</button>
+          </div>
+          <div class="toolbar-group zoom-group" role="group" aria-label="Zoom" data-i18n-attr="aria-label:lay.zoom">
+            <button type="button" id="zoomOut" class="ghost small icon-text" title="Zoom out (−)" aria-label="Zoom out" data-i18n-attr="title:lay.zoomOut; aria-label:lay.zoomOut">−</button>
             <span id="zoomLabel" class="zoom-label">100%</span>
-            <button type="button" id="zoomIn" class="ghost small icon-text" title="Zoom in (+)" aria-label="Zoom in">+</button>
-            <button type="button" id="zoomFit" class="ghost small" title="Fit to screen (0)" aria-pressed="false">Fit</button>
+            <button type="button" id="zoomIn" class="ghost small icon-text" title="Zoom in (+)" aria-label="Zoom in" data-i18n-attr="title:lay.zoomIn; aria-label:lay.zoomIn">+</button>
+            <button type="button" id="zoomFit" class="ghost small" aria-pressed="false" data-i18n="lay.fit" data-i18n-attr="title:lay.fitTitle">Fit</button>
           </div>
           <div class="toolbar-group edit-only">
             <label class="grid-size">
-              <span>Cols</span>
+              <span data-i18n="lay.cols">Cols</span>
               <input id="colsInput" type="number" min="4" max="60" />
             </label>
             <label class="grid-size">
-              <span>Rows</span>
+              <span data-i18n="lay.rows">Rows</span>
               <input id="rowsInput" type="number" min="4" max="40" />
             </label>
-            <button type="button" id="clearButton" class="ghost small danger-text">Clear all</button>
+            <button type="button" id="clearButton" class="ghost small danger-text" data-i18n="lay.clear">Clear all</button>
           </div>
         </div>
 
@@ -78,7 +81,7 @@
         </div>
 
         <div class="board-scroll">
-          <svg id="board" class="board" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Track layout grid">
+          <svg id="board" class="board" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Track layout grid" data-i18n-attr="aria-label:lay.grid">
             <defs>
               <pattern id="gridPattern" width="100" height="100" patternUnits="userSpaceOnUse">
                 <rect width="100" height="100" fill="none" stroke="var(--grid-line)" stroke-width="2" />
@@ -90,11 +93,12 @@
           </svg>
         </div>
 
-        <p id="statusLine" class="response" aria-live="polite">Ready.</p>
+        <p id="statusLine" class="response" aria-live="polite" data-i18n="common.ready">Ready.</p>
       </section>
     </main>
 
     <script src="trackCatalog.js"></script>
+    <script src="i18n.js"></script>
     <script src="layout.js"></script>
   </body>
 </html>

@@ -1,9 +1,10 @@
-/* global TrackCatalog */
+/* global TrackCatalog, I18n */
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const CELL = 100; // SVG units per grid square
 const CELL_PX = 56; // on-screen size of one square
-const { cellsOf, footprint, statesOf, addressSlots, addressSpace, findAddressConflicts, ADDRESS_SPACES, MAX_ADDRESS } =
-  TrackCatalog;
+const { cellsOf, footprint, statesOf, addressSlots, addressSpace, findAddressConflicts, MAX_ADDRESS } = TrackCatalog;
+// Translated text (`t` is used for tiles in this file).
+const tr = (key, vars) => I18n.t(key, vars);
 
 // Each element is drawn in a 100×100 square (or size×100 for larger elements).
 // Connection points are the edge midpoints — west (0,50), east (100,50),
@@ -28,49 +29,40 @@ const STRAIGHT_WE = 'M0 50 H100';
 const STRAIGHT_NS = 'M50 0 V100';
 const DIAGONAL_SW_NE = 'M0 100 L100 0';
 
+// Labels and state names come from i18n.js (falling back to trackCatalog.js).
 const ELEMENTS = {
-  straight: { label: 'Straight', paths: [STRAIGHT_WE] },
-  diagonal: { label: 'Diagonal', paths: [DIAGONAL_SW_NE] },
-  'curve-45-left': { label: 'Curve 45° left', paths: [CURVE45_W_NE] },
-  'curve-45-right': { label: 'Curve 45° right', paths: [CURVE45_W_SE] },
-  curve: { label: 'Curve 90° R1', paths: [ARC90_R1] },
-  'curve-r2': { label: 'Curve 90° R2 (parallel)', paths: [ARC90_R2] },
+  straight: { paths: [STRAIGHT_WE] },
+  diagonal: { paths: [DIAGONAL_SW_NE] },
+  'curve-45-left': { paths: [CURVE45_W_NE] },
+  'curve-45-right': { paths: [CURVE45_W_SE] },
+  curve: { paths: [ARC90_R1] },
+  'curve-r2': { paths: [ARC90_R2] },
   'turnout-left': {
-    label: 'Turnout left',
     routes: { straight: [STRAIGHT_WE], diverging: [CURVE45_W_NE] },
-    stateLabels: { straight: 'straight', diverging: 'diverging' },
     switchPoint: true
   },
   'turnout-right': {
-    label: 'Turnout right',
     routes: { straight: [STRAIGHT_WE], diverging: [CURVE45_W_SE] },
-    stateLabels: { straight: 'straight', diverging: 'diverging' },
     switchPoint: true
   },
   'turnout-3way': {
-    label: 'Three-way turnout',
     routes: { straight: [STRAIGHT_WE], left: [CURVE45_W_NE], right: [CURVE45_W_SE] },
-    stateLabels: { straight: 'straight', left: 'left', right: 'right' },
     switchPoint: true
   },
   'double-slip': {
-    label: 'Crossover switch',
     // Straight W–E crossing the SW–NE diagonal; the slip routes curve W→NE and SW→E.
     routes: { straight: [STRAIGHT_WE, DIAGONAL_SW_NE], turn: [CURVE45_W_NE, CURVE45_SW_E] },
-    stateLabels: { straight: 'straight', turn: 'turning' },
     switchPoint: true
   },
-  'crossing-45': { label: 'Crossing 45°', paths: [STRAIGHT_WE, DIAGONAL_SW_NE] },
-  crossing: { label: 'Crossing 90°', paths: [STRAIGHT_WE, STRAIGHT_NS] },
-  buffer: { label: 'Buffer stop', paths: ['M0 50 H62'], extra: 'buffer' },
+  'crossing-45': { paths: [STRAIGHT_WE, DIAGONAL_SW_NE] },
+  crossing: { paths: [STRAIGHT_WE, STRAIGHT_NS] },
+  buffer: { paths: ['M0 50 H62'], extra: 'buffer' },
   signal: {
-    label: 'Signal',
     paths: [STRAIGHT_WE],
-    stateLabels: { stop: 'stop (red)', go: 'go (green)' },
     extra: 'signal'
   },
-  contact: { label: 'Contact track', paths: [STRAIGHT_WE], extra: 'contact' },
-  uncoupler: { label: 'Uncoupler', paths: [STRAIGHT_WE], extra: 'uncoupler' }
+  contact: { paths: [STRAIGHT_WE], extra: 'contact' },
+  uncoupler: { paths: [STRAIGHT_WE], extra: 'uncoupler' }
 };
 
 const isSwitchable = (type) => Boolean(statesOf(type));
@@ -78,11 +70,8 @@ const isMomentary = (type) => Boolean(TrackCatalog.TYPES[type] && TrackCatalog.T
 const isClickableInRun = (type) => isSwitchable(type) || isMomentary(type) || type === 'contact';
 const defaultState = (type) => (statesOf(type) ? statesOf(type)[0] : undefined);
 
-const TOOLS = [
-  { id: 'select', label: 'Select / move' },
-  ...Object.entries(ELEMENTS).map(([id, el]) => ({ id, label: el.label })),
-  { id: 'eraser', label: 'Eraser' }
-];
+const TOOLS = ['select', ...Object.keys(ELEMENTS), 'eraser'].map((id) => ({ id }));
+const toolLabel = (id) => (ELEMENTS[id] ? I18n.label(id) : tr(`tool.${id}`));
 
 const ZOOM_MIN = 16;
 const ZOOM_MAX = 140;
@@ -116,6 +105,7 @@ const ui = {
   props: $('propsBar'),
   propsTitle: $('propsTitle'),
   propsFields: $('propsFields'),
+  rules: $('rulesButton'),
   modeButtons: document.querySelectorAll('[data-mode]')
 };
 
@@ -131,6 +121,7 @@ const state = {
   drag: null, // { ids, start, delta, moved, clickedId, modifier }
   marquee: null, // { start, end, base }
   flashing: new Set(), // momentary elements briefly highlighted in run mode
+  sensors: {}, // contact tracks that are on (occupied): { id: true }
   propsFor: null, // key the properties bar was built for
   zoom: CELL_PX, // on-screen pixels per grid square
   zoomFit: true,
@@ -166,7 +157,7 @@ const storage = {
 
 let saveTimer = null;
 const scheduleSave = () => {
-  ui.saveState.textContent = 'Saving…';
+  ui.saveState.textContent = tr('common.saving');
   ui.saveState.classList.remove('error');
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
@@ -178,11 +169,11 @@ const scheduleSave = () => {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Save failed.');
-      ui.saveState.textContent = 'Saved';
+      ui.saveState.textContent = tr('common.saved');
     } catch (error) {
-      ui.saveState.textContent = 'Not saved';
+      ui.saveState.textContent = tr('common.notSaved');
       ui.saveState.classList.add('error');
-      setStatus(`Could not save layout: ${error.message}`, 'error');
+      setStatus(tr('lay.saveFailed', { msg: error.message }), 'error');
     }
   }, 400);
 };
@@ -201,7 +192,7 @@ const tileAt = (x, y) => state.tiles.find((t) => cellsOf(t).some((c) => sameCell
 const selectedTiles = () => state.tiles.filter((t) => state.selection.has(t.id));
 const singleSelected = () => (state.selection.size === 1 ? tileById([...state.selection][0]) : null);
 const inBounds = ([x, y]) => x >= 0 && y >= 0 && x < state.cols && y < state.rows;
-const where = (tile) => `column ${tile.x + 1}, row ${tile.y + 1}`;
+const where = (tile) => tr('lay.where', { x: tile.x + 1, y: tile.y + 1 });
 
 // Checks whether an element of `type` fits at anchor (x, y) with `rotation`.
 const checkFit = (type, x, y, rotation, ignoreId = null) => {
@@ -266,9 +257,9 @@ const addressText = (tile) => {
 
 const describe = (tile) => {
   const addr = addressText(tile);
-  const label = ELEMENTS[tile.type].label;
+  const label = I18n.label(tile.type);
   if (!addr) return label;
-  return /^[?/]+$/.test(addr.text) ? `${label} (no address)` : `${label} #${addr.text}`;
+  return /^[?/]+$/.test(addr.text) ? tr('lay.noAddress', { label }) : `${label} #${addr.text}`;
 };
 
 // Who else uses `address` in the address space of `tile` (other elements or the other drive).
@@ -378,7 +369,8 @@ const renderTiles = (issues = computeIssues()) => {
         class: classes.join(' ')
       });
       g.append(...cellRects(tile, 'tile-bg'));
-      g.append(drawElement(tile.type, { rotation: tile.rotation, state: tile.state, active: state.flashing.has(tile.id) }));
+      const active = state.flashing.has(tile.id) || (state.mode === 'run' && Boolean(state.sensors[tile.id]));
+      g.append(drawElement(tile.type, { rotation: tile.rotation, state: tile.state, active }));
 
       // Address badge (not rotated). In run mode only set addresses are shown.
       const addr = addressText(tile);
@@ -483,7 +475,7 @@ const renderPalette = () => {
       button.type = 'button';
       button.className = 'palette-item';
       button.dataset.tool = tool.id;
-      button.title = tool.label;
+      button.title = toolLabel(tool.id);
       button.setAttribute('role', 'option');
       button.setAttribute('aria-selected', String(state.tool === tool.id));
 
@@ -499,7 +491,7 @@ const renderPalette = () => {
       }
 
       const label = document.createElement('span');
-      label.textContent = tool.label;
+      label.textContent = toolLabel(tool.id);
 
       button.append(preview, label);
       li.append(button);
@@ -520,12 +512,11 @@ const renderToolbar = (issues) => {
   const count = state.selection.size;
   ui.rotate.disabled = !(count > 0 || ELEMENTS[state.tool]);
   ui.remove.disabled = count === 0;
-  ui.remove.textContent = count > 1 ? `Remove (${count})` : 'Remove';
+  ui.remove.textContent = count > 1 ? tr('lay.removeN', { n: count }) : tr('lay.remove');
 
   const conflictCount = issues.conflicts.length;
   ui.check.classList.toggle('has-conflicts', conflictCount > 0);
-  ui.check.textContent =
-    conflictCount > 0 ? `⚠ ${conflictCount} address conflict${conflictCount > 1 ? 's' : ''}` : '✓ Check';
+  ui.check.textContent = conflictCount > 0 ? tr('lay.conflicts', { n: conflictCount }) : tr('lay.check');
   ui.check.setAttribute('aria-expanded', String(state.issuesOpen));
 };
 
@@ -545,7 +536,7 @@ const renderIssues = (issues) => {
       ui.board.dataset.tool = 'select';
       state.selection = new Set(ids);
       render();
-      setStatus(ids.length > 1 ? `${ids.length} elements selected.` : `${describe(tileById(ids[0]))} selected.`);
+      setStatus(ids.length > 1 ? tr('lay.nSelected', { n: ids.length }) : tr('lay.oneSelected', { name: describe(tileById(ids[0])) }));
     });
     li.append(button);
     items.push(li);
@@ -554,21 +545,21 @@ const renderIssues = (issues) => {
   issues.conflicts.forEach((c) => {
     const users = c.uses.map((u) => {
       const t = tileById(u.id);
-      const drive = addressSlots(t.type).length > 1 ? ` (${addressSlots(t.type)[u.slot]})` : '';
-      return `${ELEMENTS[t.type].label}${drive} at ${where(t)}`;
+      const drive = addressSlots(t.type).length > 1 ? ` (${I18n.addressLabel(t.type, u.slot)})` : '';
+      return tr('lay.at', { label: `${I18n.label(t.type)}${drive}`, where: where(t) });
     });
     addItem(
-      `${ADDRESS_SPACES[c.space]} ${c.address} is used ${c.uses.length}×: ${users.join(' · ')}`,
+      tr('lay.conflictItem', { space: tr(`space.${c.space}`), address: c.address, n: c.uses.length, users: users.join(' · ') }),
       [...new Set(c.uses.map((u) => u.id))],
       'conflict'
     );
   });
-  issues.missing.forEach((t) => addItem(`${ELEMENTS[t.type].label} at ${where(t)} has no address`, [t.id], 'missing'));
+  issues.missing.forEach((tile) => addItem(tr('lay.missingItem', { label: I18n.label(tile.type), where: where(tile) }), [tile.id], 'missing'));
 
   if (items.length === 0) {
     const li = document.createElement('li');
     li.className = 'issue ok';
-    li.textContent = 'All good: no duplicate and no missing decoder addresses.';
+    li.textContent = tr('lay.allGood');
     items.push(li);
   }
   ui.issuesList.replaceChildren(...items);
@@ -583,10 +574,10 @@ const renderProps = () => {
   if (tiles.length === 0) {
     if (state.propsFor === 'none') return;
     state.propsFor = 'none';
-    ui.propsTitle.textContent = 'No selection';
+    ui.propsTitle.textContent = tr('lay.noSelection');
     const note = document.createElement('span');
     note.className = 'props-note';
-    note.textContent = 'Select an element to set its decoder address.';
+    note.textContent = tr('lay.noSelectionNote');
     ui.propsFields.replaceChildren(note);
     return;
   }
@@ -595,31 +586,31 @@ const renderProps = () => {
   state.propsFor = key;
 
   if (tiles.length > 1) {
-    ui.propsTitle.textContent = `${tiles.length} elements selected`;
+    ui.propsTitle.textContent = tr('lay.multiTitle', { n: tiles.length });
     const note = document.createElement('span');
     note.className = 'props-note';
-    note.textContent = 'Drag or use the arrow keys to move them together. R rotates the group, Del removes it.';
+    note.textContent = tr('lay.multiNote');
     ui.propsFields.replaceChildren(note);
     return;
   }
 
   const tile = tiles[0];
-  ui.propsTitle.textContent = `${ELEMENTS[tile.type].label} · ${where(tile)}`;
+  ui.propsTitle.textContent = `${I18n.label(tile.type)} · ${where(tile)}`;
   const slots = addressSlots(tile.type);
   if (slots.length === 0) {
     const note = document.createElement('span');
     note.className = 'props-note';
-    note.textContent = 'No decoder address needed.';
+    note.textContent = tr('lay.noAddressNeeded');
     ui.propsFields.replaceChildren(note);
     return;
   }
 
   ui.propsFields.replaceChildren(
-    ...slots.map((labelText, i) => {
+    ...slots.map((_slot, i) => {
       const label = document.createElement('label');
       label.className = 'props-field';
       const span = document.createElement('span');
-      span.textContent = labelText;
+      span.textContent = I18n.addressLabel(tile.type, i);
       const input = document.createElement('input');
       input.type = 'number';
       input.min = '1';
@@ -706,7 +697,7 @@ const setAddress = (tileId, slot, input) => {
   const raw = input.value.trim();
   const value = raw === '' ? null : Number(raw);
   if (value !== null && !(Number.isInteger(value) && value >= 1 && value <= MAX_ADDRESS)) {
-    setStatus(`Decoder address must be between 1 and ${MAX_ADDRESS}.`, 'error');
+    setStatus(tr('lay.addrRange', { max: MAX_ADDRESS }), 'error');
     input.value = previous;
     return;
   }
@@ -715,9 +706,9 @@ const setAddress = (tileId, slot, input) => {
     if (user) {
       const whom =
         user.tile.id === tile.id
-          ? `the other drive of this ${ELEMENTS[tile.type].label.toLowerCase()}`
-          : `${ELEMENTS[user.tile.type].label} at ${where(user.tile)}`;
-      setStatus(`${ADDRESS_SPACES[addressSpace(tile.type)]} ${value} is already used by ${whom}.`, 'error');
+          ? tr('lay.otherDrive', { label: I18n.label(tile.type) })
+          : tr('lay.at', { label: I18n.label(user.tile.type), where: where(user.tile) });
+      setStatus(tr('lay.addrUsed', { space: tr(`space.${addressSpace(tile.type)}`), value, whom }), 'error');
       input.value = previous;
       input.select();
       return;
@@ -730,7 +721,7 @@ const setAddress = (tileId, slot, input) => {
   renderTiles(issues);
   renderToolbar(issues);
   renderIssues(issues);
-  setStatus(value === null ? `${ELEMENTS[tile.type].label}: address cleared.` : `${describe(tile)} saved.`, 'ok');
+  setStatus(value === null ? tr('lay.addrCleared', { label: I18n.label(tile.type) }) : tr('lay.addrSaved', { name: describe(tile) }), 'ok');
 };
 
 const setTool = (tool) => {
@@ -738,13 +729,9 @@ const setTool = (tool) => {
   if (tool !== 'select') state.selection.clear();
   ui.board.dataset.tool = tool;
   render();
-  if (ELEMENTS[tool]) setStatus(`${ELEMENTS[tool].label}: click a square to place it. Press R to rotate.`);
-  else if (tool === 'eraser') setStatus('Eraser: click an element to remove it.');
-  else {
-    setStatus(
-      'Select: click an element (Shift/Ctrl-click for more, or drag a frame), drag to move, arrow keys to nudge.'
-    );
-  }
+  if (ELEMENTS[tool]) setStatus(tr('lay.toolHint', { label: I18n.label(tool) }));
+  else if (tool === 'eraser') setStatus(tr('lay.eraserHint'));
+  else setStatus(tr('lay.selectHint'));
 };
 
 const setMode = (mode) => {
@@ -756,7 +743,8 @@ const setMode = (mode) => {
   render();
   if (state.zoomFit) setZoom(0, { fit: true });
   if (state.mode === 'run') {
-    setStatus('Run mode: click a turnout, crossover switch, signal or uncoupler to operate it.');
+    pollLive();
+    setStatus(tr('lay.runHint'));
   } else {
     setTool(state.tool);
   }
@@ -771,14 +759,14 @@ const sendOperation = async (tile, newState, label) => {
       body: JSON.stringify({ id: tile.id, state: newState })
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Command rejected by the server.');
+    if (!response.ok) throw new Error(data.error || tr('lay.rejected'));
     if (data.sent) {
-      setStatus(`${label} — sent to Intellibox.`, 'ok');
+      setStatus(tr('lay.sent', { label }), 'ok');
     } else {
-      setStatus(`${label} — not sent: ${data.error}`, 'error');
+      setStatus(tr('lay.notSent', { label, msg: data.error }), 'error');
     }
   } catch (error) {
-    setStatus(`${label} — not sent: ${error.message}`, 'error');
+    setStatus(tr('lay.notSent', { label, msg: error.message }), 'error');
   }
 };
 
@@ -787,8 +775,8 @@ const operate = (tile) => {
     const states = statesOf(tile.type);
     tile.state = states[(states.indexOf(tile.state) + 1) % states.length];
     render();
-    const label = `${describe(tile)}: ${ELEMENTS[tile.type].stateLabels[tile.state]}`;
-    setStatus(`${label} — sending…`);
+    const label = `${describe(tile)}: ${I18n.stateLabel(tile.type, tile.state)}`;
+    setStatus(tr('lay.sending', { label }));
     sendOperation(tile, tile.state, label);
   } else if (isMomentary(tile.type)) {
     state.flashing.add(tile.id);
@@ -797,18 +785,70 @@ const operate = (tile) => {
       state.flashing.delete(tile.id);
       render();
     }, 700);
-    const label = `${describe(tile)}: triggered`;
-    setStatus(`${label} — sending…`);
+    const label = `${describe(tile)}: ${tr('lay.triggered')}`;
+    setStatus(tr('lay.sending', { label }));
     sendOperation(tile, undefined, label);
   } else if (tile.type === 'contact') {
-    setStatus(`${describe(tile)}.`);
+    toggleSensor(tile);
   }
+};
+
+// Contact tracks are inputs read from the s88 feedback modules. A click switches the
+// contact by hand (to test rules without a train); the server then runs the logic rules.
+const toggleSensor = async (tile) => {
+  const active = !state.sensors[tile.id];
+  const label = `${describe(tile)}: ${tr(active ? 'sensor.on' : 'sensor.off')}`;
+  if (active) state.sensors[tile.id] = true;
+  else delete state.sensors[tile.id];
+  render();
+  try {
+    const response = await fetch('/api/sensors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: tile.id, active })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || tr('lay.rejected'));
+    const fired = data.fired.length;
+    setStatus(`${label} — ${fired ? tr('rules.fired', { n: fired }) : tr('rules.noneFired')}.`, fired ? 'ok' : '');
+    pollLive();
+  } catch (error) {
+    setStatus(`${label} — ${error.message}`, 'error');
+  }
+};
+
+// Rules switch elements on the server: pick up their states and the active sensors.
+// Only states are taken over, so edits that are not saved yet are never lost.
+const pollLive = async () => {
+  try {
+    const response = await fetch('/api/live');
+    if (!response.ok) return;
+    const live = await response.json();
+    let changed = JSON.stringify(live.sensors) !== JSON.stringify(state.sensors);
+    state.sensors = live.sensors;
+    state.tiles.forEach((tile) => {
+      const next = live.states[tile.id];
+      if (next !== undefined && next !== tile.state) {
+        tile.state = next;
+        changed = true;
+      }
+    });
+    if (changed && !state.drag && !state.marquee) render();
+  } catch (_error) {
+    // Server not reachable: try again on the next tick.
+  }
+};
+
+const openRulesWindow = () => {
+  const win = window.open('/rules.html', 'birdrail-rules', 'popup,width=1180,height=820');
+  if (win) win.focus();
+  else location.href = '/rules.html'; // Popups blocked: open it here instead.
 };
 
 const placeTile = (cell) => {
   const fit = checkFit(state.tool, cell.x, cell.y, state.placeRotation);
   if (fit.outside) {
-    setStatus(`${ELEMENTS[state.tool].label} does not fit here — it needs more room inside the grid.`, 'error');
+    setStatus(tr('lay.noFit', { label: I18n.label(state.tool) }), 'error');
     return;
   }
   const replaced = new Set(fit.overlapping.map((t) => t.id));
@@ -829,7 +869,7 @@ const removeTiles = (ids) => {
   ids.forEach((id) => state.selection.delete(id));
   scheduleSave();
   setStatus(
-    removed.length === 1 ? `Removed ${ELEMENTS[removed[0].type].label.toLowerCase()}.` : `Removed ${removed.length} elements.`
+    removed.length === 1 ? tr('lay.removedOne', { label: I18n.label(removed[0].type) }) : tr('lay.removedN', { n: removed.length })
   );
 };
 
@@ -837,7 +877,7 @@ const removeTiles = (ids) => {
 const applyGroup = (moved, errorText) => {
   const fit = checkGroupFit(moved);
   if (!fit.ok) {
-    setStatus(fit.outside ? `${errorText}: the grid edge is in the way.` : `${errorText}: another element is in the way.`, 'error');
+    setStatus(tr(fit.outside ? 'lay.edgeInWay' : 'lay.elementInWay', { action: errorText }), 'error');
     return false;
   }
   const byId = new Map(moved.map((t) => [t.id, t]));
@@ -849,8 +889,8 @@ const applyGroup = (moved, errorText) => {
 const rotate = () => {
   const tiles = selectedTiles();
   if (tiles.length > 0) {
-    if (applyGroup(rotatedGroup(tiles), 'Cannot rotate')) {
-      setStatus(tiles.length > 1 ? `Rotated ${tiles.length} elements.` : `Rotated ${ELEMENTS[tiles[0].type].label.toLowerCase()}.`);
+    if (applyGroup(rotatedGroup(tiles), tr('lay.cannotRotate'))) {
+      setStatus(tiles.length > 1 ? tr('lay.rotatedN', { n: tiles.length }) : tr('lay.rotatedOne', { label: I18n.label(tiles[0].type) }));
     }
   } else if (ELEMENTS[state.tool]) {
     state.placeRotation = (state.placeRotation + 90) % 360;
@@ -861,7 +901,7 @@ const rotate = () => {
 const nudge = (dx, dy) => {
   const tiles = selectedTiles();
   if (tiles.length === 0) return;
-  if (applyGroup(shifted(tiles, dx, dy), 'Cannot move')) render();
+  if (applyGroup(shifted(tiles, dx, dy), tr('lay.cannotMove'))) render();
 };
 
 /* ---------- Pointer interaction ---------- */
@@ -944,10 +984,10 @@ ui.board.addEventListener('pointerdown', (event) => {
   const count = state.selection.size;
   if (count === 1) {
     const only = singleSelected();
-    const hint = addressSlots(only.type).length > 0 ? ' Set its address above the grid.' : '';
-    setStatus(`${describe(only)} selected. Drag to move, R to rotate, Del to remove.${hint}`);
+    const hint = addressSlots(only.type).length > 0 ? tr('lay.setAddressHint') : '';
+    setStatus(`${tr('lay.selectedOneHint', { name: describe(only) })}${hint}`);
   } else if (count > 1) {
-    setStatus(`${count} elements selected. Drag one of them to move all.`);
+    setStatus(tr('lay.selectedNHint', { n: count }));
   }
   render();
 });
@@ -965,7 +1005,7 @@ const endPointer = (event, cancelled = false) => {
       const y2 = Math.max(start.y, end.y);
       const inside = state.tiles.filter((t) => cellsOf(t).some(([x, y]) => x >= x1 && x <= x2 && y >= y1 && y <= y2));
       state.selection = new Set([...base, ...inside.map((t) => t.id)]);
-      if (state.selection.size > 0) setStatus(`${state.selection.size} element(s) selected.`);
+      if (state.selection.size > 0) setStatus(tr('lay.nSelected', { n: state.selection.size }));
     }
   }
 
@@ -973,8 +1013,8 @@ const endPointer = (event, cancelled = false) => {
     const { ids, delta, moved, clickedId, modifier } = state.drag;
     state.drag = null;
     if (moved && !cancelled) {
-      if (applyGroup(shifted(ids.map(tileById), delta.dx, delta.dy), 'Cannot move')) {
-        setStatus(ids.length > 1 ? `Moved ${ids.length} elements.` : `Moved to ${where(tileById(ids[0]))}.`);
+      if (applyGroup(shifted(ids.map(tileById), delta.dx, delta.dy), tr('lay.cannotMove'))) {
+        setStatus(ids.length > 1 ? tr('lay.movedN', { n: ids.length }) : tr('lay.movedTo', { where: where(tileById(ids[0])) }));
       }
     } else if (!moved && !modifier && state.selection.size > 1) {
       // Plain click on one element of a group selects just that element.
@@ -1012,6 +1052,8 @@ ui.palette.addEventListener('click', (event) => {
 });
 
 ui.rotate.addEventListener('click', rotate);
+ui.rules.addEventListener('click', openRulesWindow);
+
 ui.remove.addEventListener('click', () => {
   removeTiles([...state.selection]);
   render();
@@ -1026,8 +1068,8 @@ ui.check.addEventListener('click', () => {
   if (state.issuesOpen) {
     setStatus(
       issues.conflicts.length > 0
-        ? `${issues.conflicts.length} duplicate address(es) found. Click an entry to select the elements.`
-        : `No duplicate addresses. ${issues.missing.length} element(s) without address.`,
+        ? tr('lay.dupFound', { n: issues.conflicts.length })
+        : tr('lay.noDup', { n: issues.missing.length }),
       issues.conflicts.length > 0 ? 'error' : 'ok'
     );
   }
@@ -1037,34 +1079,34 @@ ui.clear.addEventListener('click', () => {
   if (state.tiles.length === 0) return;
   if (ui.clear.dataset.confirm !== 'yes') {
     ui.clear.dataset.confirm = 'yes';
-    ui.clear.textContent = 'Click again to clear';
+    ui.clear.textContent = tr('lay.clearConfirm');
     setTimeout(() => {
       delete ui.clear.dataset.confirm;
-      ui.clear.textContent = 'Clear all';
+      ui.clear.textContent = tr('lay.clear');
     }, 3000);
     return;
   }
   delete ui.clear.dataset.confirm;
-  ui.clear.textContent = 'Clear all';
+  ui.clear.textContent = tr('lay.clear');
   state.tiles = [];
   state.selection.clear();
   scheduleSave();
   render();
-  setStatus('Layout cleared.');
+  setStatus(tr('lay.cleared'));
 });
 
 const resizeGrid = () => {
   const cols = Number(ui.cols.value);
   const rows = Number(ui.rows.value);
   if (!(Number.isInteger(cols) && cols >= 4 && cols <= 60 && Number.isInteger(rows) && rows >= 4 && rows <= 40)) {
-    setStatus('Grid size: 4–60 columns and 4–40 rows.', 'error');
+    setStatus(tr('lay.gridRange'), 'error');
     ui.cols.value = state.cols;
     ui.rows.value = state.rows;
     return;
   }
   const outside = state.tiles.filter((t) => cellsOf(t).some(([x, y]) => x >= cols || y >= rows));
   if (outside.length > 0) {
-    setStatus(`Cannot shrink: ${outside.length} element(s) would be outside the grid. Move them first.`, 'error');
+    setStatus(tr('lay.cannotShrink', { n: outside.length }), 'error');
     ui.cols.value = state.cols;
     ui.rows.value = state.rows;
     return;
@@ -1074,7 +1116,7 @@ const resizeGrid = () => {
   scheduleSave();
   render();
   if (state.zoomFit) setZoom(0, { fit: true });
-  setStatus(`Grid is now ${cols} × ${rows}.`);
+  setStatus(tr('lay.gridNow', { cols, rows }));
 };
 
 ui.cols.addEventListener('change', resizeGrid);
@@ -1114,7 +1156,7 @@ document.addEventListener('keydown', (event) => {
     ui.board.dataset.tool = 'select';
     state.selection = new Set(state.tiles.map((t) => t.id));
     render();
-    setStatus(`${state.selection.size} elements selected.`);
+    setStatus(tr('lay.nSelected', { n: state.selection.size }));
   } else if (ARROWS[event.key] && state.selection.size > 0) {
     event.preventDefault();
     nudge(...ARROWS[event.key]);
@@ -1147,7 +1189,7 @@ const init = async () => {
     state.rows = data.rows;
     state.tiles = data.tiles;
   } catch (error) {
-    setStatus(`Could not load layout: ${error.message}`, 'error');
+    setStatus(tr('lay.loadFailed', { msg: error.message }), 'error');
   }
   ui.board.dataset.tool = state.tool;
 
@@ -1165,8 +1207,20 @@ const init = async () => {
     state.issuesOpen = true;
     render();
     if (state.zoomFit) setZoom(0, { fit: true });
-    setStatus('This layout contains duplicate decoder addresses. Fix them before saving changes.', 'error');
+    setStatus(tr('lay.dupOnLoad'), 'error');
   }
 };
 
+// Language switched (here or in another window): redraw texts built by script.
+window.addEventListener('languagechange', () => {
+  state.propsFor = null;
+  render();
+  if (state.mode === 'run') setStatus(tr('lay.runHint'));
+  else setTool(state.tool);
+});
+
 init();
+
+setInterval(() => {
+  if (document.visibilityState === 'visible') pollLive();
+}, 1000);
