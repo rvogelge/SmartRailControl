@@ -12,6 +12,13 @@ const P50X_XLOK = 0x80;
 const P50X_DIR_FORWARD = 0x20;
 const P50X_LIGHT = 0x10;
 const P50X_XTRNT = 0x90;
+const P50X_XSENSOR = 0x98; // read one s88 module
+const P50X_XEVENT = 0xc8; // which kinds of events are pending
+const P50X_XEVTSEN = 0xcb; // s88 modules that changed
+const P50_S88_READ = 0x80; // legacy P50: 0x80 + n reads modules 1..n (2 bytes each)
+const MAX_S88_MODULES = 31;
+// A reply that does not arrive within this time is given up and the input is resynced.
+const REPLY_TIMEOUT_MS = 1000;
 const P50X_STATUS_OK = 0x00;
 // One-byte replies of the Intellibox to P50X commands.
 const P50X_REPLIES = {
@@ -31,6 +38,34 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // UI speed range 0..126; P50X uses 0 = stop, 1 = emergency stop, 2..127 = speed steps.
 const MAX_SPEED = 126;
+
+// Reply readers: given the bytes received so far, return how many bytes form the
+// complete reply, or 0 while it is still incomplete.
+const fixedReply = (length) => (bytes) => (bytes.length >= length ? length : 0);
+const REPLY_READERS = {
+  status: fixedReply(1),
+  // XEvent: 1..n bytes, bit 7 set = another byte follows.
+  event: (bytes) => {
+    const end = bytes.findIndex((b) => (b & 0x80) === 0);
+    return end === -1 ? 0 : end + 1;
+  },
+  // XEvtSen: [module, contacts 1-8, contacts 9-16] per changed module, then 0x00.
+  sensorEvents: (bytes) => {
+    let pos = 0;
+    while (pos < bytes.length) {
+      if (bytes[pos] === 0) return pos + 1;
+      if (pos + 3 > bytes.length) return 0;
+      pos += 3;
+    }
+    return 0;
+  },
+  // XSensor: status byte, then (only if OK) contacts 1-8 and 9-16.
+  sensor: (bytes) => {
+    if (bytes.length === 0) return 0;
+    if (bytes[0] !== P50X_STATUS_OK) return 1;
+    return bytes.length >= 3 ? 3 : 0;
+  }
+};
 
 const clampSpeed = (speed) => Math.max(0, Math.min(MAX_SPEED, Math.round(Number(speed) || 0)));
 
@@ -56,6 +91,8 @@ class SerialService {
     this.connected = false;
     this.lastPacket = [];
     this.lastReceivedPacket = [];
+    this.rxBuffer = [];
+    this.pendingReplies = []; // FIFO: the Intellibox answers commands in order
     if (this.disabled) {
       console.log('Serial interface disabled via BIRDRAIL_SERIAL_DISABLED. Running in layout-only mode.');
       return;
@@ -116,18 +153,11 @@ class SerialService {
         console.log(`Connected to serial interface on ${this.portName} @ ${this.baudRate} baud`);
       });
 
-      this.connection.on('data', (chunk) => {
-        const bytes = Array.from(chunk);
-        this.lastReceivedPacket = bytes;
-        const metadata = { length: bytes.length };
-        if (this.protocol !== 'P50' && bytes.length > 0) {
-          metadata.status = P50X_REPLIES[bytes[0]] || `unknown reply 0x${bytes[0].toString(16).padStart(2, '0').toUpperCase()}`;
-        }
-        this.logCommunication('rx', bytes, metadata);
-      });
+      this.connection.on('data', (chunk) => this.handleData(chunk));
 
       this.connection.on('close', () => {
         this.connected = false;
+        this.failPendingReplies('Serial port closed.');
         console.log(`Serial interface closed on ${this.portName}`);
       });
 
@@ -140,6 +170,127 @@ class SerialService {
       this.connection = null;
       this.connected = false;
     }
+  }
+
+  isOpen() {
+    return !this.disabled && Boolean(this.connection && this.connection.isOpen);
+  }
+
+  /* ---------- Replies ---------- */
+
+  // Bytes from the Intellibox are matched, in order, to the commands that expect a reply.
+  handleData(chunk) {
+    this.rxBuffer.push(...chunk);
+    while (this.rxBuffer.length > 0) {
+      const pending = this.pendingReplies[0];
+      if (!pending) {
+        this.logCommunication('rx', this.rxBuffer, { unexpected: true });
+        this.rxBuffer = [];
+        return;
+      }
+      const length = pending.reader(this.rxBuffer);
+      if (length === 0) return;
+      const reply = this.rxBuffer.slice(0, length);
+      this.rxBuffer = this.rxBuffer.slice(length);
+      this.pendingReplies.shift();
+      clearTimeout(pending.timer);
+      if (!pending.quiet) {
+        this.lastReceivedPacket = reply;
+        const metadata = { reply: pending.label };
+        if (pending.reader === REPLY_READERS.status) {
+          metadata.status = P50X_REPLIES[reply[0]] || `unknown reply 0x${reply[0].toString(16).padStart(2, '0').toUpperCase()}`;
+        }
+        this.logCommunication('rx', reply, metadata);
+      }
+      pending.resolve(reply);
+    }
+  }
+
+  // Registers the reply for a command that is about to be written.
+  expectReply(reader, { label, quiet = false } = {}) {
+    return new Promise((resolve, reject) => {
+      const pending = { reader, label, quiet, resolve, reject };
+      pending.timer = setTimeout(() => {
+        const index = this.pendingReplies.indexOf(pending);
+        if (index !== -1) this.pendingReplies.splice(index, 1);
+        // Whatever arrived for this reply is unusable: start over with an empty buffer.
+        this.rxBuffer = [];
+        reject(new Error(`No reply from the Intellibox (${label}).`));
+      }, REPLY_TIMEOUT_MS);
+      if (pending.timer.unref) pending.timer.unref();
+      this.pendingReplies.push(pending);
+    });
+  }
+
+  failPendingReplies(message) {
+    const pending = this.pendingReplies;
+    this.pendingReplies = [];
+    this.rxBuffer = [];
+    pending.forEach((p) => {
+      clearTimeout(p.timer);
+      p.reject(new Error(message));
+    });
+  }
+
+  // Writes a command and resolves with its reply bytes.
+  async request(packet, reader, { label, quiet = false } = {}) {
+    if (!this.isOpen()) {
+      throw new Error(`Serial port ${this.portName} is not open.`);
+    }
+    const reply = this.expectReply(reader, { label, quiet });
+    this.write(packet, { label, quiet }).catch(() => {});
+    return reply;
+  }
+
+  // Raw write. Does not wait for a reply.
+  write(packet, { label, quiet = false } = {}) {
+    if (!quiet) {
+      this.lastPacket = packet;
+      this.logCommunication('tx', packet, { request: label, protocol: this.protocol });
+    }
+    return new Promise((resolve, reject) => {
+      this.connection.write(Buffer.from(packet), (error) => {
+        if (error) {
+          console.error('[Intellibox TX ERROR]', error.message);
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  /* ---------- Feedback (s88) ---------- */
+
+  // P50X: kinds of pending events, as the raw flag bytes.
+  readEvents() {
+    return this.request([P50X_PREFIX, P50X_XEVENT], REPLY_READERS.event, { label: 'XEvent', quiet: true });
+  }
+
+  // P50X: modules whose contacts changed: [{ module, bytes: [contacts 1-8, contacts 9-16] }].
+  async readSensorEvents() {
+    const reply = await this.request([P50X_PREFIX, P50X_XEVTSEN], REPLY_READERS.sensorEvents, { label: 'XEvtSen', quiet: true });
+    const modules = [];
+    for (let pos = 0; reply[pos] !== 0; pos += 3) {
+      modules.push({ module: reply[pos], bytes: [reply[pos + 1], reply[pos + 2]] });
+    }
+    return modules;
+  }
+
+  // P50X: current state of one module, [contacts 1-8, contacts 9-16].
+  async readSensorModule(module) {
+    const reply = await this.request([P50X_PREFIX, P50X_XSENSOR, module], REPLY_READERS.sensor, { label: `XSensor ${module}`, quiet: true });
+    if (reply[0] !== P50X_STATUS_OK) {
+      throw new Error(`s88 module ${module}: ${P50X_REPLIES[reply[0]] || `error 0x${reply[0].toString(16)}`}`);
+    }
+    return reply.slice(1);
+  }
+
+  // Legacy P50: modules 1..count, [{ module, bytes }].
+  async readP50Sensors(count) {
+    const n = Math.max(1, Math.min(MAX_S88_MODULES, count));
+    const reply = await this.request([P50_S88_READ + n], fixedReply(2 * n), { label: `s88 read 1-${n}`, quiet: true });
+    return Array.from({ length: n }, (_v, i) => ({ module: i + 1, bytes: [reply[2 * i], reply[2 * i + 1]] }));
   }
 
   getStatus() {
@@ -247,6 +398,10 @@ class SerialService {
       };
     }
 
+    if (this.protocol !== 'P50') {
+      // XLok answers with one status byte; it is logged when it arrives.
+      this.expectReply(REPLY_READERS.status, { label: 'XLok' }).catch(() => {});
+    }
     this.connection.write(Buffer.from(packet), (error) => {
       if (error) {
         console.error('[Intellibox TX ERROR]', error.message);
@@ -305,16 +460,11 @@ class SerialService {
       );
     }
 
-    return new Promise((resolve, reject) => {
-      this.connection.write(Buffer.from(packet), (error) => {
-        if (error) {
-          console.error('[Intellibox TX ERROR]', error.message);
-          reject(error);
-        } else {
-          resolve();
-        }
-      });
-    });
+    if (this.protocol !== 'P50') {
+      // XTrnt answers with one status byte; it is logged when it arrives.
+      this.expectReply(REPLY_READERS.status, { label: 'XTrnt' }).catch(() => {});
+    }
+    return this.write(packet, { quiet: true });
   }
 
   // Sends [{ address, color }] one after another: output on, wait, output off.
@@ -347,5 +497,7 @@ SerialService.P50X_STATUS_OK = P50X_STATUS_OK;
 SerialService.DEFAULT_BAUD_RATE = DEFAULT_BAUD_RATE;
 SerialService.SUPPORTED_BAUD_RATES = SUPPORTED_BAUD_RATES;
 SerialService.MAX_SPEED = MAX_SPEED;
+SerialService.MAX_S88_MODULES = MAX_S88_MODULES;
+SerialService.REPLY_READERS = REPLY_READERS;
 
 module.exports = SerialService;

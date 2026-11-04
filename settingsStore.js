@@ -5,6 +5,8 @@ const crypto = require('crypto');
 const DEFAULT_FILE = path.join(__dirname, 'data', 'settings.json');
 const MAX_SPEED = 126;
 const MAX_CONTROLLERS = 50;
+const LANGUAGES = ['en', 'de'];
+const DEFAULT_UI = { language: 'en' };
 
 const TrackCatalog = require('./public/trackCatalog');
 
@@ -91,6 +93,67 @@ const sanitizeLayout = (input) => {
   return { cols, rows, tiles: sanitizedTiles };
 };
 
+/* ---------- Logic rules ---------- */
+
+const MAX_RULES = 200;
+const MAX_RULE_ITEMS = 20;
+const MAX_DELAY_S = 3600;
+const ID_PATTERN = /^[\w-]{1,64}$/;
+
+// Rule: { id, name, enabled,
+//   trigger:    { device: <contact tile id>, state: 'on' | 'off' },
+//   conditions: [{ device, state }]          — all must hold (AND),
+//   actions:    [{ device, state, delay }] } — run in order, delay in seconds before each.
+// Devices are referenced by tile id. A rule may point at an element that was removed
+// from the layout later; it is kept (the editor flags it, the engine skips it), but a
+// device that exists must have the right kind and a valid state.
+const sanitizeRules = (input, tiles = []) => {
+  const list = Array.isArray(input) ? input : [];
+  if (list.length > MAX_RULES) throw new Error(`At most ${MAX_RULES} rules are supported.`);
+  const byId = new Map(tiles.map((t) => [t.id, t]));
+  const ids = new Set();
+
+  const ref = (item, what, role, statesFor, ruleName) => {
+    const device = item && typeof item.device === 'string' && ID_PATTERN.test(item.device) ? item.device : null;
+    const state = item && typeof item.state === 'string' ? item.state.slice(0, 20) : '';
+    const tile = device && byId.get(device);
+    if (tile) {
+      if (!TrackCatalog.ruleRoles(tile.type)[role]) {
+        throw new Error(`Rule "${ruleName}": ${TrackCatalog.labelOf(tile.type)} cannot be used as ${what}.`);
+      }
+      if (!statesFor(tile.type).includes(state)) {
+        throw new Error(`Rule "${ruleName}": invalid state "${state}" for ${TrackCatalog.labelOf(tile.type)}.`);
+      }
+    }
+    return { device, state };
+  };
+
+  const items = (value, map) => (Array.isArray(value) ? value.slice(0, MAX_RULE_ITEMS).map(map) : []);
+
+  return list.map((rule, index) => {
+    if (!rule || typeof rule !== 'object') throw new Error('Invalid rule.');
+    let id = typeof rule.id === 'string' && ID_PATTERN.test(rule.id) ? rule.id : crypto.randomUUID();
+    if (ids.has(id)) id = crypto.randomUUID();
+    ids.add(id);
+    const name = String(rule.name || '').trim().slice(0, 60) || `Rule ${index + 1}`;
+
+    const trigger = ref(rule.trigger, 'a trigger', 'trigger', TrackCatalog.conditionStates, name);
+    if (!['on', 'off'].includes(trigger.state)) trigger.state = 'on';
+
+    return {
+      id,
+      name,
+      enabled: rule.enabled !== false,
+      trigger,
+      conditions: items(rule.conditions, (c) => ref(c, 'a condition', 'condition', TrackCatalog.conditionStates, name)),
+      actions: items(rule.actions, (a) => {
+        const delay = Math.round(Math.max(0, Math.min(MAX_DELAY_S, Number(a && a.delay) || 0)) * 10) / 10;
+        return { ...ref(a, 'an action', 'action', TrackCatalog.actionStates, name), delay };
+      })
+    };
+  });
+};
+
 const createController = (overrides = {}) => ({
   id: crypto.randomUUID(),
   name: 'Locomotive',
@@ -160,11 +223,24 @@ class SettingsStore {
       console.error(`Ignoring invalid saved layout: ${error.message}`);
     }
 
+    let rules = [];
+    try {
+      // Structure only: references are checked against the layout when rules are saved.
+      rules = sanitizeRules(raw.rules);
+    } catch (error) {
+      console.error(`Ignoring invalid saved rules: ${error.message}`);
+    }
+
+    const ui = { ...DEFAULT_UI };
+    if (raw.ui && LANGUAGES.includes(raw.ui.language)) ui.language = raw.ui.language;
+
     return {
       serial: raw.serial && typeof raw.serial === 'object' ? raw.serial : {},
+      ui,
       controllers,
       activeControllerId,
-      layout
+      layout,
+      rules
     };
   }
 
@@ -173,6 +249,37 @@ class SettingsStore {
     const tmpFile = `${this.filePath}.tmp`;
     fs.writeFileSync(tmpFile, JSON.stringify(this.data, null, 2));
     fs.renameSync(tmpFile, this.filePath);
+  }
+
+  // Switches to another settings file. useExisting: load the data found there;
+  // otherwise the current data is written to the new file.
+  switchFile(filePath, { useExisting = false } = {}) {
+    const previous = this.filePath;
+    this.filePath = filePath;
+    try {
+      if (useExisting) {
+        JSON.parse(fs.readFileSync(filePath, 'utf8')); // refuse files that are not JSON
+        this.data = this.load();
+      } else {
+        this.save();
+      }
+    } catch (error) {
+      this.filePath = previous;
+      throw new Error(useExisting ? `Cannot read ${filePath}: ${error.message}` : `Cannot write ${filePath}: ${error.message}`);
+    }
+  }
+
+  getUi() {
+    return { ...this.data.ui };
+  }
+
+  setUi({ language }) {
+    if (!LANGUAGES.includes(language)) {
+      throw new Error(`Language must be one of: ${LANGUAGES.join(', ')}.`);
+    }
+    this.data.ui = { ...this.data.ui, language };
+    this.save();
+    return this.getUi();
   }
 
   getSerial() {
@@ -231,6 +338,16 @@ class SettingsStore {
     return this.getLayout();
   }
 
+  getRules() {
+    return JSON.parse(JSON.stringify(this.data.rules));
+  }
+
+  setRules(rules) {
+    this.data.rules = sanitizeRules(rules, this.data.layout.tiles);
+    this.save();
+    return this.getRules();
+  }
+
   getTile(id) {
     const tile = this.data.layout.tiles.find((t) => t.id === id);
     return tile ? { ...tile } : null;
@@ -252,5 +369,7 @@ class SettingsStore {
 SettingsStore.TRACK_TYPES = TRACK_TYPES;
 SettingsStore.ELEMENT_STATES = ELEMENT_STATES;
 SettingsStore.GRID_LIMITS = GRID_LIMITS;
+SettingsStore.sanitizeRules = sanitizeRules;
+SettingsStore.LANGUAGES = LANGUAGES;
 
 module.exports = SettingsStore;

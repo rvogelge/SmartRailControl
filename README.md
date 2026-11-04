@@ -7,9 +7,10 @@ BirdRail is a small Raspberry Pi web app for controlling a model railway locomot
 - Several saved locomotive controllers, selectable from a list (add, rename, delete)
 - Each controller keeps its decoder ID, speed and direction
 - Live speed slider, forward/reverse toggle, stop and emergency stop
-- Interface settings (serial port, baud rate) in a separate dialog (gear icon)
-- Controllers and interface settings are stored on the Pi in `data/settings.json`, so every browser sees the same setup and it survives restarts
+- Settings dialog (gear icon): serial port and baud rate, user interface language (English / Deutsch), data location
+- Controllers, layout, rules and settings are stored on the Pi in one file (default `data/settings.json`, folder selectable), so every browser sees the same setup and it survives restarts
 - Track layout page (`/layout.html`, "Layout" tab) to draw a simple track plan on a square grid
+- Logic rules editor in a separate window ("if contact 5 turns on, set turnout 12 to diverging"), run by the server
 - Works on phones and desktop browsers on the local network
 
 ## Requirements
@@ -64,9 +65,31 @@ Environment variables:
 - `SERIAL_RTSCTS=false` – turn off hardware handshake if your USB adapter does not wire CTS
 - `INTELLIBOX_PROTOCOL=P50` – use the legacy 6050-compatible P50 protocol (addresses 1–80, 14 speed steps)
 
+## Settings dialog
+
+Open it with the gear icon (or the status chip) on the Control page.
+
+- **Interface:** serial port and baud rate, applied with *Apply interface*.
+- **Language:** English or Deutsch. The choice is saved on the server, so it applies to all pages and all browsers; other open windows (layout, logic rules) switch right away. Error messages that come from the server stay in English.
+- **Data storage:** shows the data file and whether it is persistent:
+  - *on disk* — normal installation,
+  - *on a mounted volume* — container with a volume, survives re-creating the container,
+  - *inside the container only* — lost when the container is removed (shown in orange),
+  - *in memory (tmpfs)* — lost on restart.
+
+  *Change folder…* opens a folder browser on the server. Pick a folder or type a new path (it is created) and click *Use this folder*: the current data is copied there and used from then on; the old file stays where it was. If the folder already contains BirdRail data, you choose between *Load the data from there* (the page reloads with that data) and *Overwrite it with the current data*.
+
+  The chosen folder is remembered in `data/location.json` next to the app. `BIRDRAIL_SETTINGS_FILE` overrides everything; the dialog then shows the path but cannot change it.
+
+**Containers:** to keep the data, mount a volume — either at `/app/data` (then the default folder is already persistent), or anywhere else and choose it in the dialog. In the second case `/app/data` must be persistent too, because that is where the choice is remembered; the dialog warns if it is not. The simplest setup is:
+
+```bash
+podman run -d --name birdrail -p 3000:3000 -v birdrail-data:/app/data birdrail
+```
+
 ## App behavior
 
-Moving the slider or changing the direction sends a command right away. Selecting another controller does not send anything; the locomotive is only driven once you move its slider. Interface settings saved in the dialog take precedence over `SERIAL_PORT` / `SERIAL_BAUD_RATE` on the next start. Delete `data/settings.json` to reset everything.
+Moving the slider or changing the direction sends a command right away. Selecting another controller does not send anything; the locomotive is only driven once you move its slider. Interface settings saved in the dialog take precedence over `SERIAL_PORT` / `SERIAL_BAUD_RATE` on the next start. Delete the data file (see *Settings dialog → Data storage*) to reset everything.
 
 ## Track layout editor
 
@@ -96,6 +119,44 @@ Track geometry: elements connect at the edge midpoints of a square and, for 45°
 
 The layout is saved automatically in `data/settings.json`.
 
+## Logic rules
+
+Click **⚡ Logic rules** in the layout toolbar to open the rules editor in a separate window (`/rules.html`). The left side lists every device of the layout — contact tracks (sensors), turnouts, signals and uncouplers — with decoder address, position, live state and how many rules use it. Click a device to show only the rules that use it.
+
+A rule reads like a sentence:
+
+```text
+WHEN    Contact track #5 turns on (occupied)
+AND IF  Signal #20 is stop (red)            ← optional, any number, all must hold
+THEN    set Turnout left #12 to diverging   after 0 s
+AND THEN set Signal #20 to go (green)       after 2 s
+```
+
+- **Trigger:** a contact track turning *on* (occupied) or *off* (free). A rule fires only when the contact changes.
+- **Conditions:** the current state of a turnout, signal or other contact track.
+- **Actions:** switch a turnout, three-way turnout, crossover switch or signal, or trigger an uncoupler. Actions run in order; the delay is the wait before each action. They send the same commands as a click in run mode.
+- Rules can be switched off, duplicated and deleted (delete asks for a second click). Rules are saved automatically in `data/settings.json` and run on the server, so they work with no browser open.
+- Rules that point at an element that was removed from the layout, or at a contact without a number, are marked in orange; the server skips the missing parts.
+- The **Activity** list shows what the rules did, including commands that could not be sent.
+
+**Sensors:** contact tracks follow the s88 feedback modules connected to the Intellibox (see *Feedback modules* below). The status at the top of the device list says whether they are read. You can also press a contact by hand to test rules without a train: click it in run mode or click its *on/off* chip in the rules window. It works like a button, not a switch: the contact turns on (orange) for 2 seconds and then off again, so both the *turns on* and the *turns off* rules run, like a passing train. Pressing again while it is on restarts the 2 seconds; a report from the real s88 contact ends the press. Actions never change contacts, so rules cannot trigger each other in a loop.
+
+## Feedback modules (s88)
+
+The server reads the s88 modules through the Intellibox and sets the contact tracks with the matching contact number. Numbering runs across modules: module 1 = contacts 1–16, module 2 = 17–32, and so on.
+
+- **P50X:** after connecting, every module is read once (`XSensor`, `0x58 0x98 <module>`). Contacts already occupied at that moment are taken over without firing rules. After that the server asks for events every 150 ms (`XEvent`, `0x58 0xC8`) and, when a sensor changed, fetches the changed modules (`XEvtSen`, `0x58 0xCB`). The Intellibox collects changes between two polls, so short pulses are not lost.
+- **Legacy P50** (`INTELLIBOX_PROTOCOL=P50`): modules 1…n are read on every poll (`0x80 + n`, two bytes per module).
+- By default the server reads as many modules as the highest contact number in the layout needs. The Intellibox must be set up to scan at least that many s88 modules; see its manual for the s88 module setting.
+- The polling traffic is not logged. Contact changes are logged as `[s88] contact 5 on`, and fired rules as `[rules] …`. If the Intellibox stops answering, the server retries every 2 s and reads all modules again.
+- Replies from the Intellibox are now matched to their commands in order, so turnout and locomotive replies are logged with the command they belong to (`{"reply":"XTrnt","status":"OK"}`).
+
+Environment variables:
+
+- `S88_FEEDBACK=false` – do not read feedback modules
+- `S88_MODULES` – number of modules to read (default: from the layout)
+- `S88_POLL_MS` – poll interval in ms (default `150`)
+
 ## Switching accessories
 
 In run mode, switching a turnout, three-way turnout, crossover switch or signal, or triggering an uncoupler, sends the command to the decoder address(es) stored for that element. The browser only tells the server which element changed; the server looks up the addresses in the saved layout.
@@ -112,15 +173,20 @@ In run mode, switching a turnout, three-way turnout, crossover switch or signal,
 | Crossover switch | straight → green, turning → red |
 | Uncoupler | short pulse on green |
 
-The new state is saved even if the command could not be sent (no address, serial port not open); the status line then says *not sent* and why. Each command and the Intellibox reply are logged in the terminal (`[Intellibox TX]` / `[Intellibox RX]`). Contact tracks are inputs and send nothing.
+The new state is saved even if the command could not be sent (no address, serial port not open); the status line then says *not sent* and why. Each command and the Intellibox reply are logged in the terminal (`[Intellibox TX]` / `[Intellibox RX]`). Contact tracks are inputs and send nothing; clicking one in run mode presses it for 2 seconds to test the logic rules.
 
 ## File overview
 
 - `server.js` – HTTP server and API endpoints
 - `serialService.js` – serial device wrapper and packet builder
-- `settingsStore.js` – stores controllers and interface settings in `data/settings.json`
+- `settingsStore.js` – stores controllers, interface settings, layout and logic rules in `data/settings.json`
+- `ruleEngine.js` – runs the logic rules when a sensor changes
+- `dataLocation.js` – where the data file lives, folder browser, persistence check
+- `feedbackPoller.js` – reads the s88 feedback modules through the Intellibox
 - `public/index.html` – locomotive control page
 - `public/layout.html`, `public/layout.js` – track layout editor
+- `public/rules.html`, `public/rules.js` – logic rules editor (separate window)
 - `public/trackCatalog.js` – element types, states, addresses and footprints (shared by browser and server)
-- `public/app.js` – browser-side control logic
+- `public/app.js` – browser-side control logic and settings dialog
+- `public/i18n.js` – user interface texts (English, German)
 - `public/styles.css` – styling

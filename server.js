@@ -4,11 +4,16 @@ const express = require('express');
 const path = require('path');
 const SerialService = require('./serialService');
 const SettingsStore = require('./settingsStore');
+const DataLocation = require('./dataLocation');
 const TrackCatalog = require('./public/trackCatalog');
+const RuleEngine = require('./ruleEngine');
+const FeedbackPoller = require('./feedbackPoller');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
-const settingsStore = new SettingsStore();
+const dataLocation = DataLocation.resolve();
+const settingsStore = new SettingsStore(dataLocation.file);
+console.log(`Data file: ${dataLocation.file} (${dataLocation.source})`);
 const savedSerial = settingsStore.getSerial();
 
 // Settings saved from the web interface win over environment defaults.
@@ -57,6 +62,68 @@ app.post('/api/config', (req, res) => {
   }
 });
 
+/* ---------- User interface & data location ---------- */
+
+app.get('/api/ui', (_req, res) => {
+  res.json({ ...settingsStore.getUi(), languages: SettingsStore.LANGUAGES });
+});
+
+app.put('/api/ui', (req, res) => {
+  try {
+    return res.json(settingsStore.setUi(req.body || {}));
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+app.get('/api/storage', (_req, res) => {
+  res.json(DataLocation.info(settingsStore.filePath));
+});
+
+app.get('/api/storage/browse', (req, res) => {
+  try {
+    return res.json(DataLocation.browse(req.query.path));
+  } catch (error) {
+    return res.status(error.status || 400).json({ error: error.message });
+  }
+});
+
+// Moves the data to another folder.
+// mode 'copy' (default): write the current data there; refused with 409 if the folder
+//   already holds a settings.json, so the user can choose:
+// mode 'use': load the data found there · mode 'replace': overwrite it with the current data.
+app.post('/api/storage', (req, res) => {
+  const { dir, mode = 'copy' } = req.body || {};
+  try {
+    const target = DataLocation.prepare(dir);
+    if (target.file === settingsStore.filePath) {
+      return res.json({ ok: true, unchanged: true, storage: DataLocation.info(target.file) });
+    }
+    if (target.exists && mode === 'copy') {
+      return res.status(409).json({ exists: true, file: target.file, error: `${target.file} already exists.` });
+    }
+    if (mode === 'use' && !target.exists) {
+      return res.status(400).json({ error: `There is no ${DataLocation.SETTINGS_NAME} in ${target.dir}.` });
+    }
+    const previous = settingsStore.filePath;
+    settingsStore.switchFile(target.file, { useExisting: mode === 'use' });
+    DataLocation.remember(target.dir);
+    console.log(`Data file moved: ${previous} → ${target.file} (${mode})`);
+
+    if (mode === 'use') {
+      // Other data: take over its interface settings and contact states.
+      const serial = settingsStore.getSerial();
+      if (serial.portName && (serial.portName !== serialService.portName || Number(serial.baudRate) !== serialService.baudRate)) {
+        serialService.setConfiguration(serial);
+      }
+      syncContactsFromFeedback();
+    }
+    return res.json({ ok: true, loaded: mode === 'use', previous, storage: DataLocation.info(target.file) });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
 app.get('/api/controllers', (_req, res) => {
   res.json(settingsStore.getControllers());
 });
@@ -75,57 +142,152 @@ app.get('/api/layout', (_req, res) => {
 
 app.put('/api/layout', (req, res) => {
   try {
-    return res.json(settingsStore.setLayout(req.body || {}));
+    const layout = settingsStore.setLayout(req.body || {});
+    syncContactsFromFeedback();
+    return res.json(layout);
   } catch (error) {
     return res.status(400).json({ error: error.message });
   }
 });
 
-// Run mode: operate a layout element. The browser sends only the element id and the
-// new state; addresses come from the saved layout. The state is saved even when the
-// command cannot be sent, and the reply says whether it reached the Intellibox.
-app.post('/api/layout/operate', async (req, res) => {
-  const { id, state } = req.body || {};
-  const tile = settingsStore.getTile(String(id || ''));
-  if (!tile) {
-    return res.status(404).json({ error: 'Unknown layout element.' });
-  }
-
-  const momentary = Boolean(TrackCatalog.TYPES[tile.type] && TrackCatalog.TYPES[tile.type].momentary);
+// Switches a layout element: saves the new state and sends the decoder command(s).
+// Addresses come from the saved layout. The state is saved even when the command
+// cannot be sent; the result says whether it reached the Intellibox.
+// Throws (with `status`) for unknown elements or invalid states.
+const operateTile = async (tile, state) => {
+  const momentary = TrackCatalog.isMomentary(tile.type);
   let current = tile;
   if (!momentary) {
     try {
       current = settingsStore.setTileState(tile.id, state);
     } catch (error) {
-      return res.status(400).json({ error: error.message });
+      error.status = 400;
+      throw error;
     }
   }
 
   const commands = TrackCatalog.commandsFor(tile.type, momentary ? 'trigger' : state);
   if (!commands) {
-    return res.status(400).json({ error: `${tile.type} cannot be operated.` });
+    const error = new Error(`${tile.type} cannot be operated.`);
+    error.status = 400;
+    throw error;
   }
 
   const addresses = tile.addresses || [];
-  const missing = commands.filter(([slot]) => !addresses[slot]).map(([slot]) => slot);
-  if (missing.length > 0) {
-    return res.json({ ok: false, sent: false, tile: current, error: 'no decoder address set.' });
+  if (commands.some(([slot]) => !addresses[slot])) {
+    return { ok: false, sent: false, tile: current, error: 'no decoder address set.' };
   }
 
   try {
     const result = await serialService.sendAccessoryCommands(
       commands.map(([slot, color]) => ({ address: addresses[slot], color }))
     );
-    return res.json({
-      ok: result.success,
-      sent: result.success,
-      tile: current,
-      packets: result.packets,
-      error: result.error
-    });
+    return { ok: result.success, sent: result.success, tile: current, packets: result.packets, error: result.error };
   } catch (error) {
     // Address out of range for the selected protocol.
-    return res.json({ ok: false, sent: false, tile: current, error: error.message });
+    return { ok: false, sent: false, tile: current, error: error.message };
+  }
+};
+
+const ruleEngine = new RuleEngine({
+  getRules: () => settingsStore.getRules(),
+  getTile: (id) => settingsStore.getTile(id),
+  operate: operateTile
+});
+
+/* ---------- s88 feedback ---------- */
+
+const contactTiles = () => settingsStore.getLayout().tiles.filter((t) => t.type === 'contact');
+const contactNumber = (tile) => (tile.addresses && tile.addresses[0]) || null;
+
+// Modules to read: S88_MODULES, otherwise enough for the highest contact number in the layout.
+const s88ModuleCount = () => {
+  if (process.env.S88_MODULES) return Number(process.env.S88_MODULES) || 0;
+  const highest = Math.max(0, ...contactTiles().map((t) => contactNumber(t) || 0));
+  return Math.ceil(highest / 16);
+};
+
+const feedback = new FeedbackPoller({
+  serial: serialService,
+  getModuleCount: s88ModuleCount,
+  pollMs: Number(process.env.S88_POLL_MS || FeedbackPoller.DEFAULT_POLL_MS),
+  onChange: ({ contact, on, initial }) => {
+    const tiles = contactTiles().filter((t) => contactNumber(t) === contact);
+    if (!initial) console.log(`[s88] contact ${contact} ${on ? 'on' : 'off'}${tiles.length ? '' : ' (no contact track with this number)'}`);
+    tiles.forEach((tile) => {
+      ruleEngine.cancelPulse(tile.id);
+      if (initial) {
+        ruleEngine.syncSensor(tile.id, on);
+      } else {
+        const { fired } = ruleEngine.setSensor(tile.id, on);
+        if (fired.length) console.log(`[rules] contact ${contact} ${on ? 'on' : 'off'}: ${fired.length} rule(s) fired`);
+      }
+    });
+  }
+});
+
+// Contact tracks added or renumbered in the layout take over the contact's current state.
+const syncContactsFromFeedback = () => {
+  if (feedback.getStatus().state !== 'live') return;
+  contactTiles().forEach((tile) => {
+    const number = contactNumber(tile);
+    if (number) ruleEngine.syncSensor(tile.id, feedback.isOn(number));
+  });
+};
+
+if (!['0', 'false', 'no', 'off'].includes(String(process.env.S88_FEEDBACK || '').toLowerCase())) {
+  feedback.start();
+}
+
+// Run mode: operate a layout element. The browser sends only the element id and the new state.
+app.post('/api/layout/operate', async (req, res) => {
+  const { id, state } = req.body || {};
+  const tile = settingsStore.getTile(String(id || ''));
+  if (!tile) {
+    return res.status(404).json({ error: 'Unknown layout element.' });
+  }
+  try {
+    return res.json(await operateTile(tile, state));
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message });
+  }
+});
+
+// Contact track pressed by hand (run mode, rules window) to test rules without a train:
+// { id, pulse: true } turns it on for 2 s, then off again. { id, active } sets it.
+// Real contacts come from the s88 feedback modules. Matching rules run.
+app.post('/api/sensors', (req, res) => {
+  const { id, active, pulse } = req.body || {};
+  try {
+    if (pulse) {
+      const { changed, fired, pulseMs } = ruleEngine.pulseSensor(String(id || ''));
+      return res.json({ ok: true, changed, fired, active: true, pulseMs });
+    }
+    ruleEngine.cancelPulse(String(id || ''));
+    const { changed, fired } = ruleEngine.setSensor(String(id || ''), active);
+    return res.json({ ok: true, changed, fired, active: Boolean(active) });
+  } catch (error) {
+    return res.status(404).json({ error: error.message });
+  }
+});
+
+// Live view for run mode and the rules window: element states, active sensors, rule log.
+app.get('/api/live', (_req, res) => {
+  const states = Object.fromEntries(
+    settingsStore.getLayout().tiles.filter((t) => t.state !== undefined).map((t) => [t.id, t.state])
+  );
+  res.json({ states, ...ruleEngine.getLive(), feedback: feedback.getStatus() });
+});
+
+app.get('/api/rules', (_req, res) => {
+  res.json({ rules: settingsStore.getRules() });
+});
+
+app.put('/api/rules', (req, res) => {
+  try {
+    return res.json({ rules: settingsStore.setRules((req.body || {}).rules) });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
   }
 });
 

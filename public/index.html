@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-title-key="title.control">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -17,35 +17,35 @@
       </div>
 
       <nav class="tabs" aria-label="Pages">
-        <a href="/" aria-current="page">Control</a>
-        <a href="/layout.html">Layout</a>
+        <a href="/" aria-current="page" data-i18n="nav.control">Control</a>
+        <a href="/layout.html" data-i18n="nav.layout">Layout</a>
       </nav>
 
       <div class="topbar-actions">
-        <button type="button" id="statusChip" class="status-chip offline" title="Interface status">
+        <button type="button" id="statusChip" class="status-chip offline" title="Interface status" data-i18n-attr="title:ctl.statusTitle">
           <span class="dot" aria-hidden="true"></span>
-          <span id="statusText">offline</span>
+          <span id="statusText" data-i18n="ctl.offline">offline</span>
         </button>
-        <button type="button" id="openSettings" class="icon-button" aria-label="Interface settings" title="Interface settings">
+        <button type="button" id="openSettings" class="icon-button" aria-label="Settings" title="Settings" data-i18n-attr="title:set.gear; aria-label:set.gear">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm0 5.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm8.6-3.1-1.7-.4a7 7 0 0 0-.6-1.5l.9-1.5a.75.75 0 0 0-.1-.9l-1.7-1.7a.75.75 0 0 0-.9-.1l-1.5.9a7 7 0 0 0-1.5-.6l-.4-1.7A.75.75 0 0 0 12.4 3h-2.4a.75.75 0 0 0-.7.6l-.4 1.7a7 7 0 0 0-1.5.6l-1.5-.9a.75.75 0 0 0-.9.1L3.3 6.8a.75.75 0 0 0-.1.9l.9 1.5a7 7 0 0 0-.6 1.5l-1.7.4a.75.75 0 0 0-.6.7v2.4c0 .35.24.65.6.73l1.7.4c.14.52.35 1.02.6 1.5l-.9 1.5a.75.75 0 0 0 .1.9l1.7 1.7c.24.24.62.29.9.1l1.5-.9c.48.26.98.46 1.5.6l.4 1.7c.08.35.38.6.73.6h2.4c.35 0 .65-.24.73-.6l.4-1.7c.52-.14 1.02-.34 1.5-.6l1.5.9c.29.19.66.14.9-.1l1.7-1.7a.75.75 0 0 0 .1-.9l-.9-1.5c.26-.48.46-.98.6-1.5l1.7-.4a.75.75 0 0 0 .6-.73V11.6a.75.75 0 0 0-.6-.7Z"/></svg>
         </button>
       </div>
     </header>
 
     <main class="layout">
-      <aside class="card controller-list-card" aria-label="Controllers">
+      <aside class="card controller-list-card" aria-label="Controllers" data-i18n-attr="aria-label:ctl.controllers">
         <div class="card-header">
-          <h2>Controllers</h2>
-          <button type="button" id="addController" class="ghost small">+ Add</button>
+          <h2 data-i18n="ctl.controllers">Controllers</h2>
+          <button type="button" id="addController" class="ghost small" data-i18n="ctl.add">+ Add</button>
         </div>
-        <ul id="controllerList" class="controller-list" role="listbox" aria-label="Select controller"></ul>
+        <ul id="controllerList" class="controller-list" role="listbox" aria-label="Select controller" data-i18n-attr="aria-label:ctl.selectController"></ul>
       </aside>
 
-      <section class="card throttle" aria-label="Locomotive control">
+      <section class="card throttle" aria-label="Locomotive control" data-i18n-attr="aria-label:ctl.locoControl">
         <div class="throttle-head">
-          <input id="controllerName" class="name-input" type="text" maxlength="40" aria-label="Controller name" />
+          <input id="controllerName" class="name-input" type="text" maxlength="40" aria-label="Controller name" data-i18n-attr="aria-label:ctl.name" />
           <label class="decoder-field">
-            <span>Decoder</span>
+            <span data-i18n="ctl.decoder">Decoder</span>
             <input id="decoderId" type="number" min="1" max="10239" inputmode="numeric" required />
           </label>
         </div>
@@ -56,71 +56,114 @@
           <span id="directionBadge" class="direction-badge">Forward</span>
         </div>
 
-        <input id="speed" class="speed-slider" type="range" min="0" max="126" step="1" value="0" aria-label="Speed" />
+        <input id="speed" class="speed-slider" type="range" min="0" max="126" step="1" value="0" aria-label="Speed" data-i18n-attr="aria-label:ctl.speed" />
 
-        <div class="segmented" role="radiogroup" aria-label="Direction">
-          <button type="button" class="segment" data-direction="reverse" role="radio" aria-checked="false">
-            ◀ Reverse
-          </button>
-          <button type="button" class="segment" data-direction="forward" role="radio" aria-checked="true">
-            Forward ▶
-          </button>
+        <div class="segmented" role="radiogroup" aria-label="Direction" data-i18n-attr="aria-label:ctl.direction">
+          <button type="button" class="segment" data-direction="reverse" role="radio" aria-checked="false" data-i18n="ctl.reverseBtn">◀ Reverse</button>
+          <button type="button" class="segment" data-direction="forward" role="radio" aria-checked="true" data-i18n="ctl.forwardBtn">Forward ▶</button>
         </div>
 
         <div class="actions">
-          <button type="button" id="stopButton" class="stop">Stop</button>
-          <button type="button" id="emergencyButton" class="emergency">Emergency stop</button>
+          <button type="button" id="stopButton" class="stop" data-i18n="ctl.stop">Stop</button>
+          <button type="button" id="emergencyButton" class="emergency" data-i18n="ctl.emergency">Emergency stop</button>
         </div>
 
         <div class="throttle-foot">
-          <p id="responseBox" class="response" aria-live="polite">Ready.</p>
-          <button type="button" id="deleteController" class="ghost small danger-text">Delete controller</button>
+          <p id="responseBox" class="response" aria-live="polite" data-i18n="common.ready">Ready.</p>
+          <button type="button" id="deleteController" class="ghost small danger-text" data-i18n="ctl.delete">Delete controller</button>
         </div>
       </section>
     </main>
 
-    <dialog id="settingsDialog" class="dialog">
-      <form id="serialConfigForm" method="dialog">
+    <dialog id="settingsDialog" class="dialog settings-dialog">
+      <div class="dialog-body">
         <div class="dialog-head">
-          <h2>Interface settings</h2>
-          <button type="button" class="icon-button" data-close aria-label="Close">✕</button>
+          <h2 data-i18n="set.title">Settings</h2>
+          <button type="button" class="icon-button" data-close aria-label="Close" data-i18n-attr="aria-label:common.close">✕</button>
         </div>
 
-        <label class="field">
-          <span>Serial port</span>
-          <div class="field-row">
-            <select id="serialPortSelect" name="serialPort"></select>
-            <button type="button" id="refreshPorts" class="ghost small" title="Refresh ports">Refresh</button>
+        <form id="serialConfigForm" class="settings-section" method="dialog">
+          <h3 data-i18n="set.interface">Interface</h3>
+          <label class="field">
+            <span data-i18n="set.port">Serial port</span>
+            <div class="field-row">
+              <select id="serialPortSelect" name="serialPort"></select>
+              <button type="button" id="refreshPorts" class="ghost small" data-i18n="set.refresh" data-i18n-attr="title:set.refreshTitle">Refresh</button>
+            </div>
+          </label>
+
+          <label class="field">
+            <span data-i18n="set.baud">Baud rate</span>
+            <select id="baudRateSelect" name="baudRate">
+              <option value="2400">2400</option>
+              <option value="4800">4800</option>
+              <option value="9600">9600</option>
+              <option value="19200">19200</option>
+              <option value="38400">38400</option>
+            </select>
+            <small data-i18n="set.baudHint">Must match the baud rate set in the Intellibox interface menu.</small>
+          </label>
+
+          <dl class="info-grid">
+            <div><dt data-i18n="set.protocol">Protocol</dt><dd id="infoProtocol">–</dd></div>
+            <div><dt data-i18n="set.line">Line</dt><dd id="infoLine">8N2</dd></div>
+            <div><dt data-i18n="set.status">Status</dt><dd id="infoStatus">–</dd></div>
+          </dl>
+
+          <p id="settingsMessage" class="response" aria-live="polite"></p>
+
+          <div class="dialog-actions">
+            <button type="submit" class="primary" data-i18n="set.applyInterface">Apply interface</button>
           </div>
-        </label>
+        </form>
 
-        <label class="field">
-          <span>Baud rate</span>
-          <select id="baudRateSelect" name="baudRate">
-            <option value="2400">2400</option>
-            <option value="4800">4800</option>
-            <option value="9600">9600</option>
-            <option value="19200">19200</option>
-            <option value="38400">38400</option>
-          </select>
-          <small>Must match the baud rate set in the Intellibox interface menu.</small>
-        </label>
+        <section class="settings-section" aria-labelledby="languageHeading">
+          <h3 id="languageHeading" data-i18n="set.language">Language</h3>
+          <select id="languageSelect" aria-labelledby="languageHeading"></select>
+          <small class="section-hint" data-i18n="set.languageHint">Applies to all pages and all browsers.</small>
+          <p id="languageMessage" class="response" aria-live="polite"></p>
+        </section>
 
-        <dl class="info-grid">
-          <div><dt>Protocol</dt><dd id="infoProtocol">–</dd></div>
-          <div><dt>Line</dt><dd id="infoLine">8N2</dd></div>
-          <div><dt>Status</dt><dd id="infoStatus">–</dd></div>
-        </dl>
+        <section class="settings-section" aria-labelledby="dataHeading">
+          <h3 id="dataHeading" data-i18n="set.data">Data storage</h3>
+          <small class="section-hint" data-i18n="set.dataHint">Controllers, track layout, logic rules and these settings are kept in one file.</small>
 
-        <p id="settingsMessage" class="response" aria-live="polite"></p>
+          <div class="storage-current">
+            <span class="storage-label" data-i18n="set.dataFile">Data file</span>
+            <code id="storageFile">–</code>
+            <p id="storagePersistence" class="storage-note"></p>
+            <p id="storagePointer" class="storage-note warn" hidden></p>
+          </div>
 
-        <div class="dialog-actions">
-          <button type="button" class="ghost" data-close>Cancel</button>
-          <button type="submit" class="primary">Apply</button>
-        </div>
-      </form>
+          <button type="button" id="storageChange" class="ghost small storage-change" data-i18n="set.dataChange">Change folder…</button>
+
+          <div id="storagePicker" class="storage-picker" hidden>
+            <div class="field-row">
+              <button type="button" id="storageUp" class="ghost small" data-i18n="set.up" data-i18n-attr="title:set.upTitle">↑ Up</button>
+              <input id="storagePath" type="text" spellcheck="false" autocomplete="off" aria-label="Folder" data-i18n-attr="aria-label:set.folder" />
+              <button type="button" id="storageOpen" class="ghost small" data-i18n="set.open">Open</button>
+            </div>
+            <ul id="storageDirs" class="storage-dirs"></ul>
+            <p id="storageFolderInfo" class="storage-note"></p>
+            <small class="section-hint" data-i18n="set.newFolderHint">Type a path that does not exist yet to create a new folder.</small>
+            <div id="storageConflict" class="storage-conflict" hidden>
+              <p id="storageConflictText"></p>
+              <div class="field-row">
+                <button type="button" id="storageLoad" class="ghost small" data-i18n="set.loadExisting">Load the data from there</button>
+                <button type="button" id="storageReplace" class="ghost small danger-text" data-i18n="set.overwrite">Overwrite it with the current data</button>
+              </div>
+            </div>
+            <div class="dialog-actions">
+              <button type="button" id="storageCancel" class="ghost small" data-i18n="common.cancel">Cancel</button>
+              <button type="button" id="storageUse" class="primary small" data-i18n="set.useFolder">Use this folder</button>
+            </div>
+          </div>
+          <p id="storageMessage" class="response" aria-live="polite"></p>
+        </section>
+      </div>
     </dialog>
 
+    <script src="i18n.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

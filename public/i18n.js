@@ -1,0 +1,722 @@
+/* global TrackCatalog */
+// User interface texts (English, German). The language is saved on the server (shared
+// by all browsers) and cached in localStorage so pages render in it right away.
+//
+// Static HTML:   data-i18n="key" (text) · data-i18n-html="key" (trusted markup)
+//                data-i18n-attr="title:key; aria-label:key2"
+// Scripts:       t('key', { vars }) · I18n.label(type) · I18n.stateLabel(type, state)
+// Pages listen for the 'languagechange' event on window to re-render.
+(function () {
+  const STORAGE_KEY = 'birdrail.language';
+  const LANGUAGES = { en: 'English', de: 'Deutsch' };
+
+  const plural = (one, other) => ({ n }) => (Number(n) === 1 ? one : other).replace('{n}', n);
+
+  const DICT = {
+    en: {
+      'nav.control': 'Control',
+      'nav.layout': 'Layout',
+      'common.saved': 'Saved',
+      'common.saving': 'Saving…',
+      'common.notSaved': 'Not saved',
+      'common.ready': 'Ready.',
+      'common.cancel': 'Cancel',
+      'common.apply': 'Apply',
+      'common.close': 'Close',
+      'title.control': 'BirdRail',
+      'title.layout': 'BirdRail – Track layout',
+      'title.rules': 'BirdRail – Logic rules',
+
+      // Control page
+      'ctl.controllers': 'Controllers',
+      'ctl.add': '+ Add',
+      'ctl.selectController': 'Select controller',
+      'ctl.locoControl': 'Locomotive control',
+      'ctl.name': 'Controller name',
+      'ctl.decoder': 'Decoder',
+      'ctl.speed': 'Speed',
+      'ctl.direction': 'Direction',
+      'ctl.forward': 'Forward',
+      'ctl.reverse': 'Reverse',
+      'ctl.forwardBtn': 'Forward ▶',
+      'ctl.reverseBtn': '◀ Reverse',
+      'ctl.dirForward': 'forward',
+      'ctl.dirReverse': 'reverse',
+      'ctl.stop': 'Stop',
+      'ctl.emergency': 'Emergency stop',
+      'ctl.delete': 'Delete controller',
+      'ctl.deleteConfirm': 'Click again to delete',
+      'ctl.offline': 'offline',
+      'ctl.statusTitle': 'Interface status',
+      'ctl.saveFailed': 'Could not save controllers: {msg}',
+      'ctl.sendFailed': 'Command could not be sent to the Intellibox.',
+      'ctl.stopped': 'Stopped',
+      'ctl.speedDir': 'Speed {speed}, {dir}',
+      'ctl.selected': 'Selected {name}. Move the slider to drive.',
+      'ctl.newLoco': 'Locomotive {n}',
+      'ctl.deleted': 'Deleted {name}.',
+      'ctl.decoderRange': 'Decoder ID must be between 1 and 10239.',
+      'ctl.decoderSet': 'Decoder ID set to {value}.',
+      'ctl.loadFailed': 'Could not load saved controllers: {msg}',
+
+      // Settings dialog
+      'set.title': 'Settings',
+      'set.gear': 'Settings',
+      'set.interface': 'Interface',
+      'set.port': 'Serial port',
+      'set.refresh': 'Refresh',
+      'set.refreshTitle': 'Refresh ports',
+      'set.baud': 'Baud rate',
+      'set.baudHint': 'Must match the baud rate set in the Intellibox interface menu.',
+      'set.protocol': 'Protocol',
+      'set.line': 'Line',
+      'set.status': 'Status',
+      'set.connected': 'Connected',
+      'set.notConnected': 'Not connected',
+      'set.applyInterface': 'Apply interface',
+      'set.applying': 'Applying…',
+      'set.applied': 'Interface set to {port} @ {baud} baud.',
+      'set.language': 'Language',
+      'set.languageHint': 'Applies to all pages and all browsers.',
+      'set.languageSaved': 'Language saved.',
+      'set.data': 'Data storage',
+      'set.dataHint': 'Controllers, track layout, logic rules and these settings are kept in one file.',
+      'set.dataFile': 'Data file',
+      'set.dataChange': 'Change folder…',
+      'set.dataEnv': 'Set by BIRDRAIL_SETTINGS_FILE. Remove that variable to choose a folder here.',
+      'set.persist.disk': 'Stored on disk: kept across restarts.',
+      'set.persist.volume': 'On a mounted volume ({mount}): kept when the container is re-created.',
+      'set.persist.container-layer': 'Inside the container only: lost when the container is removed. Mount a volume and choose a folder on it.',
+      'set.persist.tmpfs': 'In memory (tmpfs): lost on restart.',
+      'set.persist.unknown': 'Cannot tell whether this folder is persistent.',
+      'set.notWritable': 'BirdRail cannot write to this folder.',
+      'set.pointerWarn': 'The chosen folder is remembered in {file}, which is not persistent. After the container is re-created BirdRail starts from the default folder again. Mount a volume at {dir} or set BIRDRAIL_SETTINGS_FILE.',
+      'set.folder': 'Folder',
+      'set.up': '↑ Up',
+      'set.upTitle': 'Parent folder',
+      'set.open': 'Open',
+      'set.useFolder': 'Use this folder',
+      'set.noSubfolders': 'No sub-folders.',
+      'set.hasData': 'Contains BirdRail data (settings.json).',
+      'set.newFolderHint': 'Type a path that does not exist yet to create a new folder.',
+      'set.exists': 'This folder already contains BirdRail data ({file}). What should happen?',
+      'set.loadExisting': 'Load the data from there',
+      'set.overwrite': 'Overwrite it with the current data',
+      'set.moved': 'Data is now stored in {dir}. The previous file was left in place.',
+      'set.loaded': 'Loaded the data from {dir}. Reloading…',
+      'set.unchanged': 'The data is already stored there.',
+
+      // Layout page
+      'lay.elements': 'Elements',
+      'lay.selectElement': 'Select element',
+      'lay.hint':
+        'Pick an element, then click a square to place it. Select an element to set its decoder address (double-click jumps to the field).<br /><kbd>Shift</kbd>/<kbd>Ctrl</kbd>-click or drag a frame to select several · <kbd>←↑→↓</kbd> move · <kbd>R</kbd> rotate · <kbd>Del</kbd> remove · <kbd>Ctrl</kbd>+<kbd>A</kbd> all · <kbd>Esc</kbd> select tool · <kbd>E</kbd> edit/run · <kbd>+</kbd>/<kbd>−</kbd>/<kbd>0</kbd> zoom/fit',
+      'lay.layoutPane': 'Layout pane',
+      'lay.mode': 'Mode',
+      'lay.edit': '✎ Edit',
+      'lay.run': '▶ Run',
+      'lay.editTitle': 'Edit layout (E)',
+      'lay.runTitle': 'Run mode (E)',
+      'lay.rotate': '⟳ Rotate',
+      'lay.rotateTitle': 'Rotate (R)',
+      'lay.remove': 'Remove',
+      'lay.removeN': 'Remove ({n})',
+      'lay.removeTitle': 'Remove (Del)',
+      'lay.check': '✓ Check',
+      'lay.checkTitle': 'Check decoder addresses',
+      'lay.conflicts': plural('⚠ {n} address conflict', '⚠ {n} address conflicts'),
+      'lay.rules': '⚡ Logic rules',
+      'lay.rulesTitle': 'Open the logic rules editor in a separate window',
+      'lay.zoom': 'Zoom',
+      'lay.zoomOut': 'Zoom out (−)',
+      'lay.zoomIn': 'Zoom in (+)',
+      'lay.fit': 'Fit',
+      'lay.fitTitle': 'Fit to screen (0)',
+      'lay.cols': 'Cols',
+      'lay.rows': 'Rows',
+      'lay.clear': 'Clear all',
+      'lay.clearConfirm': 'Click again to clear',
+      'lay.grid': 'Track layout grid',
+      'tool.select': 'Select / move',
+      'tool.eraser': 'Eraser',
+      'lay.saveFailed': 'Could not save layout: {msg}',
+      'lay.where': 'column {x}, row {y}',
+      'lay.at': '{label} at {where}',
+      'lay.noAddress': '{label} (no address)',
+      'lay.nSelected': plural('{n} element selected.', '{n} elements selected.'),
+      'lay.oneSelected': '{name} selected.',
+      'lay.conflictItem': '{space} {address} is used {n}×: {users}',
+      'lay.missingItem': '{label} at {where} has no address',
+      'lay.allGood': 'All good: no duplicate and no missing decoder addresses.',
+      'lay.noSelection': 'No selection',
+      'lay.noSelectionNote': 'Select an element to set its decoder address.',
+      'lay.multiTitle': '{n} elements selected',
+      'lay.multiNote': 'Drag or use the arrow keys to move them together. R rotates the group, Del removes it.',
+      'lay.noAddressNeeded': 'No decoder address needed.',
+      'lay.addrRange': 'Decoder address must be between 1 and {max}.',
+      'lay.otherDrive': 'the other drive of this {label}',
+      'lay.addrUsed': '{space} {value} is already used by {whom}.',
+      'lay.addrCleared': '{label}: address cleared.',
+      'lay.addrSaved': '{name} saved.',
+      'lay.toolHint': '{label}: click a square to place it. Press R to rotate.',
+      'lay.eraserHint': 'Eraser: click an element to remove it.',
+      'lay.selectHint': 'Select: click an element (Shift/Ctrl-click for more, or drag a frame), drag to move, arrow keys to nudge.',
+      'lay.runHint': 'Run mode: click a turnout, crossover switch, signal or uncoupler to operate it. Contact tracks light up when occupied; clicking one presses it for 2 seconds.',
+      'lay.pressed': '{label} pressed (2 s)',
+      'lay.sent': '{label} — sent to Intellibox.',
+      'lay.notSent': '{label} — not sent: {msg}',
+      'lay.sending': '{label} — sending…',
+      'lay.rejected': 'Command rejected by the server.',
+      'lay.triggered': 'triggered',
+      'lay.noFit': '{label} does not fit here — it needs more room inside the grid.',
+      'lay.removedOne': 'Removed {label}.',
+      'lay.removedN': 'Removed {n} elements.',
+      'lay.edgeInWay': '{action}: the grid edge is in the way.',
+      'lay.elementInWay': '{action}: another element is in the way.',
+      'lay.cannotRotate': 'Cannot rotate',
+      'lay.cannotMove': 'Cannot move',
+      'lay.rotatedN': 'Rotated {n} elements.',
+      'lay.rotatedOne': 'Rotated {label}.',
+      'lay.selectedOneHint': '{name} selected. Drag to move, R to rotate, Del to remove.',
+      'lay.setAddressHint': ' Set its address above the grid.',
+      'lay.selectedNHint': '{n} elements selected. Drag one of them to move all.',
+      'lay.movedN': 'Moved {n} elements.',
+      'lay.movedTo': 'Moved to {where}.',
+      'lay.dupFound': plural('{n} duplicate address found. Click an entry to select the elements.', '{n} duplicate addresses found. Click an entry to select the elements.'),
+      'lay.noDup': plural('No duplicate addresses. {n} element without address.', 'No duplicate addresses. {n} elements without address.'),
+      'lay.cleared': 'Layout cleared.',
+      'lay.gridRange': 'Grid size: 4–60 columns and 4–40 rows.',
+      'lay.cannotShrink': 'Cannot shrink: {n} element(s) would be outside the grid. Move them first.',
+      'lay.gridNow': 'Grid is now {cols} × {rows}.',
+      'lay.loadFailed': 'Could not load layout: {msg}',
+      'lay.dupOnLoad': 'This layout contains duplicate decoder addresses. Fix them before saving changes.',
+      'space.accessory': 'accessory address',
+      'space.feedback': 'contact no.',
+
+      // Logic rules
+      'rules.title': 'Logic rules',
+      'rules.devices': 'Devices',
+      'rules.hint': 'All switchable elements and contact tracks of the layout. Click a device to show only the rules that use it. Contacts follow the s88 feedback modules. Click a contact\'s <strong>on/off</strong> chip to press it: it is on for 2 seconds, then off again, so you can test your rules without a train.',
+      'rules.rules': 'Rules',
+      'rules.new': '+ New rule',
+      'rules.showAll': 'Show all rules',
+      'rules.activity': 'Activity',
+      'grp.sensors': 'Sensors',
+      'grp.turnouts': 'Turnouts',
+      'grp.signals': 'Signals',
+      'grp.uncouplers': 'Uncouplers',
+      'rules.noDevices': 'No turnouts, signals, uncouplers or contact tracks in the layout yet. Add them in the Layout editor.',
+      'rules.simulate': 'Press this contact (on for 2 seconds)',
+      'rules.showUsing': 'Show rules using this device',
+      'rules.usedIn': plural('1 rule', '{n} rules'),
+      'rules.choose': 'Choose…',
+      'rules.noSuitable': 'No suitable element',
+      'rules.removedOption': '⚠ removed element',
+      'rules.removedName': '(removed element)',
+      'rules.sensor': 'Sensor',
+      'rules.element': 'Element',
+      'rules.state': 'State',
+      'rules.sensorState': 'Sensor state',
+      'rules.when': 'WHEN',
+      'rules.turns': 'turns',
+      'rules.andIf': 'AND IF',
+      'rules.and': 'AND',
+      'rules.is': 'is',
+      'rules.then': 'THEN',
+      'rules.andThen': 'AND THEN',
+      'rules.set': 'set',
+      'rules.to': 'to',
+      'rules.after': 'after',
+      'rules.delayTitle': 'Wait this long before this action (seconds)',
+      'rules.removeCondition': 'Remove condition',
+      'rules.removeAction': 'Remove action',
+      'rules.activeTitle': 'Rule is active',
+      'rules.inactiveTitle': 'Rule is off',
+      'rules.activeAria': 'Rule active',
+      'rules.nameAria': 'Rule name',
+      'rules.duplicate': 'Duplicate',
+      'rules.delete': 'Delete',
+      'rules.deleteConfirm': 'Really delete?',
+      'rules.addCondition': '+ condition',
+      'rules.addAction': '+ action',
+      'rules.defaultName': 'Rule {n}',
+      'rules.copy': '{name} (copy)',
+      'rules.deleted': 'Deleted "{name}".',
+      'rules.chooseSensor': 'Choose a sensor.',
+      'rules.chooseCondition': 'Choose a condition element.',
+      'rules.chooseAction': 'Choose an action element.',
+      'rules.sensorRemoved': 'The sensor was removed from the layout.',
+      'rules.conditionRemoved': 'A condition element was removed from the layout.',
+      'rules.actionRemoved': 'An action element was removed from the layout.',
+      'rules.noActions': 'Add at least one action.',
+      'rules.noContactNo': 'The sensor has no contact number yet.',
+      'rules.sumWhen': 'When {sensor} turns {state}',
+      'rules.sumAnd': ' and ',
+      'rules.sumIs': '{name} is {state}',
+      'rules.sumAfter': 'after {s} s {what}',
+      'rules.sumThen': ', then ',
+      'rules.sumNothing': 'nothing',
+      'rules.incomplete': 'Incomplete rule.',
+      'rules.empty': 'No rules yet. A rule reacts to a contact track, for example:',
+      'rules.example': 'WHEN contact #5 turns on  THEN set turnout #12 to diverging',
+      'rules.noneUse': 'No rule uses this device.',
+      'rules.filterUsing': 'Using {name}',
+      'rules.fired': plural('1 rule fired', '{n} rules fired'),
+      'rules.noneFired': 'no rule fired',
+      'rules.sensorPressed': '{name} pressed for 2 s — {result}.',
+      'rules.sensorFailed': 'Could not switch the sensor: {msg}',
+      'rules.saveFailed': 'Could not save rules: {msg}',
+      'rules.layoutFailed': 'Could not load the layout: {msg}',
+      'sensor.on': 'on',
+      'sensor.off': 'off',
+      'log.empty': 'Nothing has happened yet. Rules show up here when a contact fires them.',
+      'log.started': 'started',
+      'log.missing': 'skipped an action: element no longer exists',
+      'log.notSent': '{what} (not sent: {reason})',
+      'fb.live': 'Sensors live',
+      'fb.starting': 'Sensors starting',
+      'fb.error': 'Sensors not read',
+      'fb.off': 'Sensors manual',
+      'fb.code.disabled': 'serial interface disabled',
+      'fb.code.stopped': 'feedback reading switched off',
+      'fb.code.noContacts': 'no contact track has a contact number',
+      'fb.code.portClosed': 'serial port {port} not open',
+      'fb.code.error': '{message}',
+      'fb.code.starting': 'reading s88 modules…',
+      'fb.code.live': plural('reading 1 s88 module', 'reading {n} s88 modules')
+    },
+
+    de: {
+      'nav.control': 'Steuerung',
+      'nav.layout': 'Gleisplan',
+      'common.saved': 'Gespeichert',
+      'common.saving': 'Speichert…',
+      'common.notSaved': 'Nicht gespeichert',
+      'common.ready': 'Bereit.',
+      'common.cancel': 'Abbrechen',
+      'common.apply': 'Übernehmen',
+      'common.close': 'Schließen',
+      'title.control': 'BirdRail',
+      'title.layout': 'BirdRail – Gleisplan',
+      'title.rules': 'BirdRail – Logikregeln',
+
+      'ctl.controllers': 'Fahrregler',
+      'ctl.add': '+ Neu',
+      'ctl.selectController': 'Fahrregler auswählen',
+      'ctl.locoControl': 'Loksteuerung',
+      'ctl.name': 'Name des Fahrreglers',
+      'ctl.decoder': 'Decoder',
+      'ctl.speed': 'Geschwindigkeit',
+      'ctl.direction': 'Fahrtrichtung',
+      'ctl.forward': 'Vorwärts',
+      'ctl.reverse': 'Rückwärts',
+      'ctl.forwardBtn': 'Vorwärts ▶',
+      'ctl.reverseBtn': '◀ Rückwärts',
+      'ctl.dirForward': 'vorwärts',
+      'ctl.dirReverse': 'rückwärts',
+      'ctl.stop': 'Halt',
+      'ctl.emergency': 'Nothalt',
+      'ctl.delete': 'Fahrregler löschen',
+      'ctl.deleteConfirm': 'Zum Löschen erneut klicken',
+      'ctl.offline': 'offline',
+      'ctl.statusTitle': 'Status der Schnittstelle',
+      'ctl.saveFailed': 'Fahrregler konnten nicht gespeichert werden: {msg}',
+      'ctl.sendFailed': 'Der Befehl konnte nicht an die Intellibox gesendet werden.',
+      'ctl.stopped': 'Angehalten',
+      'ctl.speedDir': 'Fahrstufe {speed}, {dir}',
+      'ctl.selected': '{name} ausgewählt. Zum Fahren den Regler bewegen.',
+      'ctl.newLoco': 'Lok {n}',
+      'ctl.deleted': '{name} gelöscht.',
+      'ctl.decoderRange': 'Die Decoder-Adresse muss zwischen 1 und 10239 liegen.',
+      'ctl.decoderSet': 'Decoder-Adresse auf {value} gesetzt.',
+      'ctl.loadFailed': 'Gespeicherte Fahrregler konnten nicht geladen werden: {msg}',
+
+      'set.title': 'Einstellungen',
+      'set.gear': 'Einstellungen',
+      'set.interface': 'Schnittstelle',
+      'set.port': 'Serieller Anschluss',
+      'set.refresh': 'Aktualisieren',
+      'set.refreshTitle': 'Anschlüsse neu suchen',
+      'set.baud': 'Baudrate',
+      'set.baudHint': 'Muss mit der Baudrate im Schnittstellenmenü der Intellibox übereinstimmen.',
+      'set.protocol': 'Protokoll',
+      'set.line': 'Leitung',
+      'set.status': 'Status',
+      'set.connected': 'Verbunden',
+      'set.notConnected': 'Nicht verbunden',
+      'set.applyInterface': 'Schnittstelle übernehmen',
+      'set.applying': 'Wird übernommen…',
+      'set.applied': 'Schnittstelle auf {port} mit {baud} Baud eingestellt.',
+      'set.language': 'Sprache',
+      'set.languageHint': 'Gilt für alle Seiten und alle Browser.',
+      'set.languageSaved': 'Sprache gespeichert.',
+      'set.data': 'Datenspeicher',
+      'set.dataHint': 'Fahrregler, Gleisplan, Logikregeln und diese Einstellungen liegen in einer Datei.',
+      'set.dataFile': 'Datendatei',
+      'set.dataChange': 'Ordner ändern…',
+      'set.dataEnv': 'Durch BIRDRAIL_SETTINGS_FILE festgelegt. Entferne diese Variable, um hier einen Ordner zu wählen.',
+      'set.persist.disk': 'Auf der Festplatte: bleibt bei Neustarts erhalten.',
+      'set.persist.volume': 'Auf einem eingebundenen Volume ({mount}): bleibt erhalten, wenn der Container neu erstellt wird.',
+      'set.persist.container-layer': 'Nur im Container: geht verloren, wenn der Container entfernt wird. Binde ein Volume ein und wähle einen Ordner darauf.',
+      'set.persist.tmpfs': 'Im Arbeitsspeicher (tmpfs): geht beim Neustart verloren.',
+      'set.persist.unknown': 'Es lässt sich nicht feststellen, ob dieser Ordner dauerhaft ist.',
+      'set.notWritable': 'BirdRail kann in diesen Ordner nicht schreiben.',
+      'set.pointerWarn': 'Der gewählte Ordner wird in {file} vermerkt, und diese Datei ist nicht dauerhaft. Nach dem Neuerstellen des Containers startet BirdRail wieder mit dem Standardordner. Binde ein Volume unter {dir} ein oder setze BIRDRAIL_SETTINGS_FILE.',
+      'set.folder': 'Ordner',
+      'set.up': '↑ Nach oben',
+      'set.upTitle': 'Übergeordneter Ordner',
+      'set.open': 'Öffnen',
+      'set.useFolder': 'Diesen Ordner verwenden',
+      'set.noSubfolders': 'Keine Unterordner.',
+      'set.hasData': 'Enthält BirdRail-Daten (settings.json).',
+      'set.newFolderHint': 'Gib einen noch nicht vorhandenen Pfad ein, um einen neuen Ordner anzulegen.',
+      'set.exists': 'In diesem Ordner liegen bereits BirdRail-Daten ({file}). Was soll passieren?',
+      'set.loadExisting': 'Daten von dort laden',
+      'set.overwrite': 'Mit den aktuellen Daten überschreiben',
+      'set.moved': 'Die Daten liegen jetzt in {dir}. Die bisherige Datei bleibt erhalten.',
+      'set.loaded': 'Daten aus {dir} geladen. Seite wird neu geladen…',
+      'set.unchanged': 'Die Daten liegen bereits dort.',
+
+      'lay.elements': 'Elemente',
+      'lay.selectElement': 'Element auswählen',
+      'lay.hint':
+        'Element wählen und dann auf ein Feld klicken, um es zu setzen. Ein ausgewähltes Element bekommt seine Decoder-Adresse oben über dem Raster (Doppelklick springt zum Feld).<br /><kbd>Shift</kbd>/<kbd>Strg</kbd>-Klick oder Rahmen ziehen für mehrere · <kbd>←↑→↓</kbd> verschieben · <kbd>R</kbd> drehen · <kbd>Entf</kbd> entfernen · <kbd>Strg</kbd>+<kbd>A</kbd> alle · <kbd>Esc</kbd> Auswahlwerkzeug · <kbd>E</kbd> Bearbeiten/Betrieb · <kbd>+</kbd>/<kbd>−</kbd>/<kbd>0</kbd> Zoom/Einpassen',
+      'lay.layoutPane': 'Gleisplan',
+      'lay.mode': 'Modus',
+      'lay.edit': '✎ Bearbeiten',
+      'lay.run': '▶ Betrieb',
+      'lay.editTitle': 'Gleisplan bearbeiten (E)',
+      'lay.runTitle': 'Betriebsmodus (E)',
+      'lay.rotate': '⟳ Drehen',
+      'lay.rotateTitle': 'Drehen (R)',
+      'lay.remove': 'Entfernen',
+      'lay.removeN': 'Entfernen ({n})',
+      'lay.removeTitle': 'Entfernen (Entf)',
+      'lay.check': '✓ Prüfen',
+      'lay.checkTitle': 'Decoder-Adressen prüfen',
+      'lay.conflicts': plural('⚠ {n} Adresskonflikt', '⚠ {n} Adresskonflikte'),
+      'lay.rules': '⚡ Logikregeln',
+      'lay.rulesTitle': 'Logikregeln in einem eigenen Fenster bearbeiten',
+      'lay.zoom': 'Zoom',
+      'lay.zoomOut': 'Verkleinern (−)',
+      'lay.zoomIn': 'Vergrößern (+)',
+      'lay.fit': 'Einpassen',
+      'lay.fitTitle': 'An Bildschirm anpassen (0)',
+      'lay.cols': 'Spalten',
+      'lay.rows': 'Zeilen',
+      'lay.clear': 'Alles löschen',
+      'lay.clearConfirm': 'Zum Löschen erneut klicken',
+      'lay.grid': 'Raster des Gleisplans',
+      'tool.select': 'Auswählen / verschieben',
+      'tool.eraser': 'Radierer',
+      'lay.saveFailed': 'Gleisplan konnte nicht gespeichert werden: {msg}',
+      'lay.where': 'Spalte {x}, Zeile {y}',
+      'lay.at': '{label} bei {where}',
+      'lay.noAddress': '{label} (ohne Adresse)',
+      'lay.nSelected': plural('{n} Element ausgewählt.', '{n} Elemente ausgewählt.'),
+      'lay.oneSelected': '{name} ausgewählt.',
+      'lay.conflictItem': '{space} {address} wird {n}× verwendet: {users}',
+      'lay.missingItem': '{label} bei {where} hat keine Adresse',
+      'lay.allGood': 'Alles in Ordnung: keine doppelten und keine fehlenden Decoder-Adressen.',
+      'lay.noSelection': 'Nichts ausgewählt',
+      'lay.noSelectionNote': 'Wähle ein Element aus, um seine Decoder-Adresse einzustellen.',
+      'lay.multiTitle': '{n} Elemente ausgewählt',
+      'lay.multiNote': 'Ziehen oder mit den Pfeiltasten gemeinsam verschieben. R dreht die Gruppe, Entf entfernt sie.',
+      'lay.noAddressNeeded': 'Keine Decoder-Adresse nötig.',
+      'lay.addrRange': 'Die Decoder-Adresse muss zwischen 1 und {max} liegen.',
+      'lay.otherDrive': 'den anderen Antrieb dieses Elements ({label})',
+      'lay.addrUsed': '{space} {value} wird bereits verwendet von {whom}.',
+      'lay.addrCleared': '{label}: Adresse gelöscht.',
+      'lay.addrSaved': '{name} gespeichert.',
+      'lay.toolHint': '{label}: auf ein Feld klicken, um es zu setzen. R dreht.',
+      'lay.eraserHint': 'Radierer: auf ein Element klicken, um es zu entfernen.',
+      'lay.selectHint': 'Auswählen: Element anklicken (Shift/Strg-Klick für mehrere oder Rahmen ziehen), ziehen zum Verschieben, Pfeiltasten zum Feinverschieben.',
+      'lay.runHint': 'Betrieb: Weiche, Doppelkreuzungsweiche, Signal oder Entkuppler anklicken, um es zu schalten. Kontaktgleise leuchten, wenn sie belegt sind; ein Klick löst sie für 2 Sekunden aus.',
+      'lay.pressed': '{label} ausgelöst (2 s)',
+      'lay.sent': '{label} — an die Intellibox gesendet.',
+      'lay.notSent': '{label} — nicht gesendet: {msg}',
+      'lay.sending': '{label} — wird gesendet…',
+      'lay.rejected': 'Der Server hat den Befehl abgelehnt.',
+      'lay.triggered': 'ausgelöst',
+      'lay.noFit': '{label} passt hier nicht hin — es braucht mehr Platz im Raster.',
+      'lay.removedOne': '{label} entfernt.',
+      'lay.removedN': '{n} Elemente entfernt.',
+      'lay.edgeInWay': '{action}: der Rand des Rasters ist im Weg.',
+      'lay.elementInWay': '{action}: ein anderes Element ist im Weg.',
+      'lay.cannotRotate': 'Drehen nicht möglich',
+      'lay.cannotMove': 'Verschieben nicht möglich',
+      'lay.rotatedN': '{n} Elemente gedreht.',
+      'lay.rotatedOne': '{label} gedreht.',
+      'lay.selectedOneHint': '{name} ausgewählt. Ziehen zum Verschieben, R zum Drehen, Entf zum Entfernen.',
+      'lay.setAddressHint': ' Die Adresse wird oben über dem Raster eingestellt.',
+      'lay.selectedNHint': '{n} Elemente ausgewählt. Eines davon ziehen, um alle zu verschieben.',
+      'lay.movedN': '{n} Elemente verschoben.',
+      'lay.movedTo': 'Verschoben nach {where}.',
+      'lay.dupFound': plural('{n} doppelte Adresse gefunden. Einen Eintrag anklicken, um die Elemente auszuwählen.', '{n} doppelte Adressen gefunden. Einen Eintrag anklicken, um die Elemente auszuwählen.'),
+      'lay.noDup': plural('Keine doppelten Adressen. {n} Element ohne Adresse.', 'Keine doppelten Adressen. {n} Elemente ohne Adresse.'),
+      'lay.cleared': 'Gleisplan gelöscht.',
+      'lay.gridRange': 'Rastergröße: 4–60 Spalten und 4–40 Zeilen.',
+      'lay.cannotShrink': 'Verkleinern nicht möglich: {n} Element(e) lägen außerhalb des Rasters. Erst verschieben.',
+      'lay.gridNow': 'Das Raster ist jetzt {cols} × {rows} groß.',
+      'lay.loadFailed': 'Gleisplan konnte nicht geladen werden: {msg}',
+      'lay.dupOnLoad': 'Dieser Gleisplan enthält doppelte Decoder-Adressen. Bitte vor dem Speichern von Änderungen beheben.',
+      'space.accessory': 'Zubehöradresse',
+      'space.feedback': 'Kontakt-Nr.',
+
+      'rules.title': 'Logikregeln',
+      'rules.devices': 'Geräte',
+      'rules.hint': 'Alle schaltbaren Elemente und Kontaktgleise des Gleisplans. Ein Klick auf ein Gerät zeigt nur die Regeln, die es verwenden. Kontakte folgen den s88-Rückmeldemodulen. Ein Klick auf die Schaltfläche <strong>ein/aus</strong> eines Kontakts löst ihn aus: er ist 2 Sekunden ein und dann wieder aus, so lassen sich Regeln ohne Zug testen.',
+      'rules.rules': 'Regeln',
+      'rules.new': '+ Neue Regel',
+      'rules.showAll': 'Alle Regeln zeigen',
+      'rules.activity': 'Protokoll',
+      'grp.sensors': 'Sensoren',
+      'grp.turnouts': 'Weichen',
+      'grp.signals': 'Signale',
+      'grp.uncouplers': 'Entkuppler',
+      'rules.noDevices': 'Der Gleisplan enthält noch keine Weichen, Signale, Entkuppler oder Kontaktgleise. Füge sie im Gleisplan-Editor hinzu.',
+      'rules.simulate': 'Kontakt auslösen (2 Sekunden ein)',
+      'rules.showUsing': 'Regeln mit diesem Gerät zeigen',
+      'rules.usedIn': plural('1 Regel', '{n} Regeln'),
+      'rules.choose': 'Auswählen…',
+      'rules.noSuitable': 'Kein passendes Element',
+      'rules.removedOption': '⚠ entferntes Element',
+      'rules.removedName': '(entferntes Element)',
+      'rules.sensor': 'Sensor',
+      'rules.element': 'Element',
+      'rules.state': 'Zustand',
+      'rules.sensorState': 'Sensorzustand',
+      'rules.when': 'WENN',
+      'rules.turns': 'meldet',
+      'rules.andIf': 'UND FALLS',
+      'rules.and': 'UND',
+      'rules.is': 'steht auf',
+      'rules.then': 'DANN',
+      'rules.andThen': 'DANACH',
+      'rules.set': 'stelle',
+      'rules.to': 'auf',
+      'rules.after': 'nach',
+      'rules.delayTitle': 'So lange vor dieser Aktion warten (Sekunden)',
+      'rules.removeCondition': 'Bedingung entfernen',
+      'rules.removeAction': 'Aktion entfernen',
+      'rules.activeTitle': 'Regel ist aktiv',
+      'rules.inactiveTitle': 'Regel ist ausgeschaltet',
+      'rules.activeAria': 'Regel aktiv',
+      'rules.nameAria': 'Name der Regel',
+      'rules.duplicate': 'Duplizieren',
+      'rules.delete': 'Löschen',
+      'rules.deleteConfirm': 'Wirklich löschen?',
+      'rules.addCondition': '+ Bedingung',
+      'rules.addAction': '+ Aktion',
+      'rules.defaultName': 'Regel {n}',
+      'rules.copy': '{name} (Kopie)',
+      'rules.deleted': '„{name}“ gelöscht.',
+      'rules.chooseSensor': 'Wähle einen Sensor.',
+      'rules.chooseCondition': 'Wähle ein Element für die Bedingung.',
+      'rules.chooseAction': 'Wähle ein Element für die Aktion.',
+      'rules.sensorRemoved': 'Der Sensor wurde aus dem Gleisplan entfernt.',
+      'rules.conditionRemoved': 'Ein Element einer Bedingung wurde aus dem Gleisplan entfernt.',
+      'rules.actionRemoved': 'Ein Element einer Aktion wurde aus dem Gleisplan entfernt.',
+      'rules.noActions': 'Füge mindestens eine Aktion hinzu.',
+      'rules.noContactNo': 'Der Sensor hat noch keine Kontaktnummer.',
+      'rules.sumWhen': 'Wenn {sensor} {state} meldet',
+      'rules.sumAnd': ' und ',
+      'rules.sumIs': '{name} auf {state} steht',
+      'rules.sumAfter': 'nach {s} s {what}',
+      'rules.sumThen': ', dann ',
+      'rules.sumNothing': 'nichts',
+      'rules.incomplete': 'Unvollständige Regel.',
+      'rules.empty': 'Noch keine Regeln. Eine Regel reagiert auf ein Kontaktgleis, zum Beispiel:',
+      'rules.example': 'WENN Kontakt #5 meldet belegt  DANN stelle Weiche #12 auf abzweigend',
+      'rules.noneUse': 'Keine Regel verwendet dieses Gerät.',
+      'rules.filterUsing': 'Mit {name}',
+      'rules.fired': plural('1 Regel ausgelöst', '{n} Regeln ausgelöst'),
+      'rules.noneFired': 'keine Regel ausgelöst',
+      'rules.sensorPressed': '{name} für 2 s ausgelöst — {result}.',
+      'rules.sensorFailed': 'Der Sensor konnte nicht geschaltet werden: {msg}',
+      'rules.saveFailed': 'Regeln konnten nicht gespeichert werden: {msg}',
+      'rules.layoutFailed': 'Gleisplan konnte nicht geladen werden: {msg}',
+      'sensor.on': 'ein',
+      'sensor.off': 'aus',
+      'log.empty': 'Bisher ist nichts passiert. Hier erscheinen Regeln, sobald ein Kontakt sie auslöst.',
+      'log.started': 'gestartet',
+      'log.missing': 'Aktion übersprungen: Element existiert nicht mehr',
+      'log.notSent': '{what} (nicht gesendet: {reason})',
+      'fb.live': 'Sensoren aktiv',
+      'fb.starting': 'Sensoren starten',
+      'fb.error': 'Sensoren nicht gelesen',
+      'fb.off': 'Sensoren manuell',
+      'fb.code.disabled': 'serielle Schnittstelle abgeschaltet',
+      'fb.code.stopped': 'Lesen der Rückmelder abgeschaltet',
+      'fb.code.noContacts': 'kein Kontaktgleis hat eine Kontaktnummer',
+      'fb.code.portClosed': 'serieller Anschluss {port} nicht geöffnet',
+      'fb.code.error': '{message}',
+      'fb.code.starting': 's88-Module werden gelesen…',
+      'fb.code.live': plural('1 s88-Modul wird gelesen', '{n} s88-Module werden gelesen'),
+
+      // Track elements (English names come from trackCatalog.js)
+      'el.straight': 'Gerade',
+      'el.diagonal': 'Diagonale',
+      'el.curve-45-left': 'Bogen 45° links',
+      'el.curve-45-right': 'Bogen 45° rechts',
+      'el.curve': 'Bogen 90° R1',
+      'el.curve-r2': 'Bogen 90° R2 (parallel)',
+      'el.turnout-left': 'Weiche links',
+      'el.turnout-right': 'Weiche rechts',
+      'el.turnout-3way': 'Dreiwegweiche',
+      'el.double-slip': 'Doppelkreuzungsweiche',
+      'el.crossing-45': 'Kreuzung 45°',
+      'el.crossing': 'Kreuzung 90°',
+      'el.buffer': 'Prellbock',
+      'el.signal': 'Signal',
+      'el.contact': 'Kontaktgleis',
+      'el.uncoupler': 'Entkuppler',
+      'state.straight': 'gerade',
+      'state.diverging': 'abzweigend',
+      'state.left': 'links',
+      'state.right': 'rechts',
+      'state.turn': 'abbiegend',
+      'state.trigger': 'auslösen',
+      'state.signal.stop': 'Halt (rot)',
+      'state.signal.go': 'Fahrt (grün)',
+      'state.contact.on': 'belegt (ein)',
+      'state.contact.off': 'frei (aus)',
+      'sensorWord.on': 'belegt',
+      'sensorWord.off': 'frei',
+      'addr.turnout-left.0': 'Weichenadresse',
+      'addr.turnout-right.0': 'Weichenadresse',
+      'addr.turnout-3way.0': 'Antrieb 1 (links)',
+      'addr.turnout-3way.1': 'Antrieb 2 (rechts)',
+      'addr.double-slip.0': 'DKW-Adresse',
+      'addr.signal.0': 'Signaladresse',
+      'addr.contact.0': 'Kontakt-Nr. (Rückmelder)',
+      'addr.uncoupler.0': 'Entkuppleradresse'
+    }
+  };
+  DICT.en['sensorWord.on'] = 'on';
+  DICT.en['sensorWord.off'] = 'off';
+
+  const readStored = () => {
+    try {
+      return localStorage.getItem(STORAGE_KEY);
+    } catch (_error) {
+      return null;
+    }
+  };
+  const store = (value) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, value);
+    } catch (_error) {
+      // Not remembered in this browser; the server still has it.
+    }
+  };
+
+  let lang = DICT[readStored()] ? readStored() : 'en';
+
+  const has = (key) => DICT[lang][key] !== undefined || DICT.en[key] !== undefined;
+
+  const t = (key, vars = {}) => {
+    let value = DICT[lang][key] !== undefined ? DICT[lang][key] : DICT.en[key];
+    if (value === undefined) return key;
+    if (typeof value === 'function') value = value(vars);
+    return value.replace(/\{(\w+)\}/g, (match, name) => (vars[name] !== undefined ? vars[name] : match));
+  };
+
+  const catalog = () => (typeof TrackCatalog !== 'undefined' ? TrackCatalog : null);
+
+  const label = (type) => {
+    if (DICT[lang][`el.${type}`]) return DICT[lang][`el.${type}`];
+    return catalog() ? catalog().labelOf(type) : type;
+  };
+
+  const stateLabel = (type, state) => {
+    const specific = DICT[lang][`state.${type}.${state}`] || DICT[lang][`state.${state}`];
+    if (specific) return specific;
+    return catalog() ? catalog().stateLabel(type, state) : state;
+  };
+
+  const addressLabel = (type, slot) => {
+    if (DICT[lang][`addr.${type}.${slot}`]) return DICT[lang][`addr.${type}.${slot}`];
+    return catalog() ? catalog().addressSlots(type)[slot] : '';
+  };
+
+  const apply = (root = document) => {
+    root.querySelectorAll('[data-i18n]').forEach((node) => {
+      node.textContent = t(node.dataset.i18n);
+    });
+    root.querySelectorAll('[data-i18n-html]').forEach((node) => {
+      node.innerHTML = t(node.dataset.i18nHtml);
+    });
+    root.querySelectorAll('[data-i18n-attr]').forEach((node) => {
+      node.dataset.i18nAttr.split(';').forEach((pair) => {
+        const [attr, key] = pair.split(':').map((s) => s.trim());
+        if (attr && key) node.setAttribute(attr, t(key));
+      });
+    });
+    const titleKey = document.documentElement.dataset.titleKey;
+    if (titleKey) document.title = t(titleKey);
+  };
+
+  const setLanguage = (next, { persist = true } = {}) => {
+    if (!DICT[next]) return;
+    const changed = next !== lang;
+    lang = next;
+    if (persist) store(next);
+    document.documentElement.lang = next;
+    apply();
+    if (changed) window.dispatchEvent(new CustomEvent('languagechange', { detail: { language: next } }));
+  };
+
+  // Saves the language on the server (all browsers) and applies it here.
+  const saveLanguage = async (next) => {
+    const response = await fetch('/api/ui', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: next })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Save failed.');
+    setLanguage(data.language);
+  };
+
+  // Another window of this browser changed the language.
+  window.addEventListener('storage', (event) => {
+    if (event.key === STORAGE_KEY && DICT[event.newValue]) setLanguage(event.newValue, { persist: false });
+  });
+
+  // The server's choice wins (it may have been changed on another device).
+  const sync = async () => {
+    try {
+      const response = await fetch('/api/ui');
+      const data = await response.json();
+      if (response.ok && DICT[data.language]) setLanguage(data.language);
+    } catch (_error) {
+      // Offline: keep the cached language.
+    }
+  };
+
+  document.documentElement.lang = lang;
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => apply());
+  } else {
+    apply();
+  }
+  sync();
+  window.addEventListener('focus', sync);
+
+  window.I18n = {
+    t,
+    has,
+    label,
+    stateLabel,
+    addressLabel,
+    apply,
+    setLanguage,
+    saveLanguage,
+    get language() {
+      return lang;
+    },
+    LANGUAGES
+  };
+  window.t = t;
+})();

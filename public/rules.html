@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en" data-title-key="title.rules">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1117" />
+    <title>BirdRail – Logic rules</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="rules-page">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 3h12a3 3 0 0 1 3 3v8a4 4 0 0 1-3.2 3.92l1.9 2.37a.75.75 0 1 1-1.17.94L16.06 18H7.94l-2.47 3.23a.75.75 0 1 1-1.18-.94l1.9-2.37A4 4 0 0 1 3 14V6a3 3 0 0 1 3-3Zm0 1.5A1.5 1.5 0 0 0 4.5 6v4h15V6A1.5 1.5 0 0 0 18 4.5H6Zm1.5 9a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z"/></svg>
+        </span>
+        <span class="brand-name">BirdRail</span>
+        <span class="page-title" data-i18n="rules.title">Logic rules</span>
+      </div>
+
+      <div class="topbar-actions">
+        <span id="saveState" class="save-state" aria-live="polite" data-i18n="common.saved">Saved</span>
+      </div>
+    </header>
+
+    <main class="rules-editor">
+      <aside class="card devices-card" aria-label="Devices" data-i18n-attr="aria-label:rules.devices">
+        <div class="card-header">
+          <h2 data-i18n="rules.devices">Devices</h2>
+          <span id="deviceCount" class="muted-count"></span>
+        </div>
+        <p id="feedbackStatus" class="feedback-status" title="s88 feedback modules"></p>
+        <div id="deviceList" class="device-list"></div>
+        <p class="hint" data-i18n-html="rules.hint">
+          All switchable elements and contact tracks of the layout. Click a device to show only the rules that use it.
+          Contacts follow the s88 feedback modules. Click a contact's <strong>on/off</strong> chip to switch it by hand and test your rules without a train.
+        </p>
+      </aside>
+
+      <section class="rules-column">
+        <div class="card rules-card">
+          <div class="card-header">
+            <h2 data-i18n="rules.rules">Rules</h2>
+            <div class="toolbar-group">
+              <span id="filterChip" class="filter-chip" hidden>
+                <span id="filterText"></span>
+                <button type="button" id="clearFilter" aria-label="Show all rules" data-i18n-attr="title:rules.showAll; aria-label:rules.showAll">×</button>
+              </span>
+              <button type="button" id="addRule" class="primary small" data-i18n="rules.new">+ New rule</button>
+            </div>
+          </div>
+          <div id="ruleList" class="rule-list"></div>
+        </div>
+
+        <div class="card log-card">
+          <div class="card-header">
+            <h2 data-i18n="rules.activity">Activity</h2>
+          </div>
+          <ol id="logList" class="log-list"></ol>
+        </div>
+
+        <p id="statusLine" class="response" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script src="trackCatalog.js"></script>
+    <script src="i18n.js"></script>
+    <script src="rules.js"></script>
+  </body>
+</html>
