@@ -342,7 +342,7 @@ class SerialService {
   // Legacy P50 (Märklin 6050 compatible): 2 bytes per command,
   // [speed 0..14 (+16 = light on), address 1..80]. Speed 15 toggles direction,
   // so the absolute direction has to be tracked per locomotive.
-  buildLegacyP50LocomotivePacket({ decoderId, speed, direction, stop }) {
+  buildLegacyP50LocomotivePacket({ decoderId, speed, direction, stop, light = false }) {
     const address = Number(decoderId);
     if (!Number.isInteger(address) || address < 1 || address > 80) {
       throw new Error('P50 supports decoder addresses 1-80 only.');
@@ -353,20 +353,22 @@ class SerialService {
     const wanted = direction === 'reverse' ? 'reverse' : 'forward';
     const current = this.p50Directions.get(address) || 'forward';
 
+    // P50: +16 in the speed byte switches the function (light, F0) on.
+    const fn = light ? 0x10 : 0x00;
     const packet = [];
     if (wanted !== current) {
       // Locomotive must be stopped before the direction change command.
-      packet.push(0x00, address, 0x0f, address);
+      packet.push(0x00 | fn, address, 0x0f | fn, address);
       this.p50Directions.set(address, wanted);
     }
-    packet.push(p50Speed, address);
+    packet.push(p50Speed | fn, address);
     return packet;
   }
 
   // P50Xb XLok: 'X', 0x80, address low, address high, speed, flags.
   // speed: 0 = stop, 1 = emergency stop, 2..127 = speed.
   // flags: bit5 = direction (1 = forward), bit4 = light (F0).
-  buildP50XLocomotivePacket({ decoderId, speed, direction, stop, emergency }) {
+  buildP50XLocomotivePacket({ decoderId, speed, direction, stop, emergency, light = false }) {
     const address = Number(decoderId);
     if (!Number.isInteger(address) || address < 1 || address > 10239) {
       throw new Error('P50X supports decoder addresses 1-10239.');
@@ -374,7 +376,7 @@ class SerialService {
 
     const uiSpeed = stop ? 0 : clampSpeed(speed);
     const p50xSpeed = emergency ? 0x01 : uiSpeed === 0 ? 0x00 : uiSpeed + 1;
-    const flags = (direction === 'reverse' ? 0x00 : P50X_DIR_FORWARD) | P50X_FORCE;
+    const flags = (direction === 'reverse' ? 0x00 : P50X_DIR_FORWARD) | P50X_FORCE | (light ? P50X_LIGHT : 0x00);
 
     return [
       P50X_PREFIX,
@@ -386,22 +388,23 @@ class SerialService {
     ];
   }
 
-  buildLocomotivePacket({ decoderId, speed, direction, stop, emergency }) {
+  buildLocomotivePacket({ decoderId, speed, direction, stop, emergency, light }) {
     const packet = this.protocol === 'P50'
-      ? this.buildLegacyP50LocomotivePacket({ decoderId, speed, direction, stop })
-      : this.buildP50XLocomotivePacket({ decoderId, speed, direction, stop, emergency });
+      ? this.buildLegacyP50LocomotivePacket({ decoderId, speed, direction, stop, light })
+      : this.buildP50XLocomotivePacket({ decoderId, speed, direction, stop, emergency, light });
 
     this.lastPacket = packet;
     return packet;
   }
 
-  sendLocomotiveCommand({ decoderId, speed, direction, stop, emergency }) {
+  sendLocomotiveCommand({ decoderId, speed, direction, stop, emergency, light }) {
     const packet = this.buildLocomotivePacket({
       decoderId,
       speed,
       direction,
       stop,
-      emergency
+      emergency,
+      light
     });
 
     const packetHex = packet.map((byte) => `0x${byte.toString(16).padStart(2, '0').toUpperCase()}`);
@@ -411,6 +414,7 @@ class SerialService {
       direction,
       stop,
       emergency: Boolean(emergency),
+      light: Boolean(light),
       protocol: this.protocol
     });
 

@@ -2158,35 +2158,6 @@ body:not([data-mode='run']) .run-only {
   font-weight: 600;
 }
 
-.tw-select .icon-button[aria-expanded='true'] {
-  background: var(--surface-2);
-  color: var(--accent);
-}
-
-.tw-edit {
-  display: grid;
-  gap: 10px;
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-
-.tw-edit[hidden] {
-  display: none;
-}
-
-.tw-edit input[type='text'],
-.tw-edit input[type='number'] {
-  padding: 7px 10px;
-  background: var(--surface);
-}
-
-.tw-edit-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 6px;
-}
-
 .tw-speed {
   display: flex;
   align-items: baseline;
@@ -2243,7 +2214,14 @@ body:not([data-mode='run']) .run-only {
   color: var(--text);
 }
 
-.fn-button[aria-pressed='true'] {
+.fn-light[aria-pressed='true'] {
+  background: rgba(245, 176, 65, 0.16);
+  border-color: rgba(245, 176, 65, 0.6);
+  color: var(--warn);
+  box-shadow: inset 0 0 0 1px rgba(245, 176, 65, 0.35);
+}
+
+.fn-button[aria-pressed='true']:not(.fn-light) {
   background: var(--accent-soft);
   border-color: rgba(79, 179, 255, 0.55);
   color: var(--accent);
@@ -2286,6 +2264,83 @@ body:not([data-mode='run']) .run-only {
 
   .speed-slider.vertical {
     height: 180px;
+  }
+}
+
+/* Locomotives page (shares the decoder test page frame) */
+.loco-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) minmax(150px, 1fr) minmax(190px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+
+#locoRows > .loco-row:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.loco-row input {
+  width: 100%;
+  padding: 7px 9px;
+}
+
+.loco-decoder,
+.loco-max {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.loco-decoder input,
+.loco-max input {
+  width: 96px;
+}
+
+.loco-row input.invalid {
+  border-color: var(--warn);
+}
+
+.loco-warning {
+  flex-basis: 100%;
+  color: var(--warn);
+}
+
+.loco-warning:empty {
+  display: none;
+}
+
+.loco-max-of {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .loco-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+
+  .loco-decoder,
+  .loco-max {
+    grid-column: 1;
+  }
+
+  .loco-remove {
+    grid-column: 2;
+    grid-row: 1;
   }
 }
 

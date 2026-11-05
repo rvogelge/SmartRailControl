@@ -166,3 +166,12 @@ test('a locomotive can be in one block only', () => {
   tracker.set('c2', { occupied: true, loco: 'BR 218' }); // after freeing c1
   assert.deepEqual(tracker.getLive(), { c2: { loco: 'BR 218' }, c3: { loco: null } });
 });
+
+test('blocks follow renamed and removed locomotives', () => {
+  const tracker = new BlockTracker({ getTiles: line });
+  tracker.set('c1', { occupied: true, loco: 'V200' });
+  tracker.renameLoco('V200', 'V 200 DB');
+  assert.deepEqual(tracker.getLive(), { c1: { loco: 'V 200 DB' } });
+  tracker.renameLoco('V 200 DB', null); // removed: the block keeps an unknown train
+  assert.deepEqual(tracker.getLive(), { c1: { loco: null } });
+});

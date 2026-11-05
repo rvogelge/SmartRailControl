@@ -28,7 +28,7 @@ test('persists controllers and serial settings across instances', () => {
   store.setSerial({ portName: '/dev/ttyUSB1', baudRate: 2400 });
 
   const reloaded = new SettingsStore(file);
-  assert.deepEqual(reloaded.getControllers().controllers[0], { id: 'a', name: 'BR 218', decoderId: 242, speed: 40, direction: 'reverse', functions: [false, false, false, false] });
+  assert.deepEqual(reloaded.getControllers().controllers[0], { id: 'a', name: 'BR 218', decoderId: 242, speed: 40, direction: 'reverse', functions: [false, false, false, false], light: false, maxSpeed: 126 });
   assert.equal(reloaded.getControllers().activeControllerId, 'b');
   assert.deepEqual(reloaded.getSerial(), { portName: '/dev/ttyUSB1', baudRate: 2400 });
 });
@@ -38,7 +38,7 @@ test('sanitizes speed and direction, rejects bad decoder IDs and empty lists', (
   const { controllers } = store.setControllers({
     controllers: [{ id: 'x', name: '', decoderId: 5, speed: 999, direction: 'sideways' }]
   });
-  assert.deepEqual(controllers[0], { id: 'x', name: 'Locomotive 5', decoderId: 5, speed: 126, direction: 'forward', functions: [false, false, false, false] });
+  assert.deepEqual(controllers[0], { id: 'x', name: 'Locomotive 5', decoderId: 5, speed: 126, direction: 'forward', functions: [false, false, false, false], light: false, maxSpeed: 126 });
   assert.throws(() => store.setControllers({ controllers: [{ decoderId: 0 }] }));
   assert.throws(() => store.setControllers({ controllers: [] }));
 });
@@ -223,4 +223,27 @@ test('the layout keeps inverted drives, only for actor elements', () => {
   assert.deepEqual(tiles[0].invert, [false, true]);
   assert.equal('invert' in tiles[1], false);
   assert.equal('invert' in tiles[2], false);
+});
+
+test('locomotives: max speed caps the speed; driving state and selection are saved on their own', () => {
+  const file = tmpFile();
+  const store = new SettingsStore(file);
+  store.setControllers({
+    controllers: [{ id: 'a', name: 'V200', decoderId: 242, maxSpeed: 50, speed: 90 }, { id: 'b', name: 'Werkslok', decoderId: 40 }],
+    activeControllerId: 'a'
+  });
+  const [v200, werkslok] = store.getControllers().controllers;
+  assert.equal(v200.maxSpeed, 50);
+  assert.equal(v200.speed, 50); // capped
+  assert.equal(werkslok.maxSpeed, 126); // default
+
+  const updated = store.updateControllerState('a', { speed: 30, light: true, name: 'ignored', maxSpeed: 126 });
+  assert.equal(updated.speed, 30);
+  assert.equal(updated.light, true);
+  assert.equal(updated.name, 'V200');
+  assert.equal(updated.maxSpeed, 50);
+  assert.throws(() => store.updateControllerState('zz', { speed: 1 }), /Unknown/);
+
+  assert.equal(store.setActiveController('b').activeControllerId, 'b');
+  assert.equal(new SettingsStore(file).getControllers().activeControllerId, 'b');
 });

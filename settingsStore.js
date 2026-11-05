@@ -186,6 +186,8 @@ const createController = (overrides = {}) => ({
   speed: 0,
   direction: 'forward',
   functions: Array(FUNCTION_COUNT).fill(false),
+  light: false,
+  maxSpeed: MAX_SPEED,
   ...overrides
 });
 
@@ -202,15 +204,20 @@ const sanitizeController = (input) => {
   const name = String(input.name || '').trim().slice(0, 40) || `Locomotive ${decoderId}`;
   const id = typeof input.id === 'string' && /^[\w-]{1,64}$/.test(input.id) ? input.id : crypto.randomUUID();
 
+  // Highest speed step the throttle may send (1..126); the throttle shows % of it.
+  const maxSpeed = Math.max(1, Math.min(MAX_SPEED, Math.round(Number(input.maxSpeed) || MAX_SPEED)));
+
   return {
     id,
     name,
     decoderId,
-    speed: Math.max(0, Math.min(MAX_SPEED, Math.round(Number(input.speed) || 0))),
+    speed: Math.max(0, Math.min(maxSpeed, Math.round(Number(input.speed) || 0))),
     direction: input.direction === 'reverse' ? 'reverse' : 'forward',
     functions: Array.from({ length: FUNCTION_COUNT }, (_v, i) =>
       Boolean(Array.isArray(input.functions) && input.functions[i])
-    )
+    ),
+    light: Boolean(input.light), // F0
+    maxSpeed
   };
 };
 
@@ -328,6 +335,30 @@ class SettingsStore {
       controllers: this.data.controllers.map((c) => ({ ...c })),
       activeControllerId: this.data.activeControllerId
     };
+  }
+
+  // Driving state of one locomotive (throttle): speed, direction, functions, light.
+  updateControllerState(id, changes = {}) {
+    const index = this.data.controllers.findIndex((c) => c.id === id);
+    if (index === -1) throw new Error('Unknown locomotive.');
+    const current = this.data.controllers[index];
+    const next = sanitizeController({
+      ...current,
+      ...['speed', 'direction', 'functions', 'light'].reduce((acc, key) => {
+        if (changes[key] !== undefined) acc[key] = changes[key];
+        return acc;
+      }, {})
+    });
+    this.data.controllers[index] = next;
+    this.save();
+    return { ...next, functions: [...next.functions] };
+  }
+
+  setActiveController(id) {
+    if (!this.data.controllers.some((c) => c.id === id)) throw new Error('Unknown locomotive.');
+    this.data.activeControllerId = id;
+    this.save();
+    return this.getControllers();
   }
 
   setControllers({ controllers, activeControllerId }) {

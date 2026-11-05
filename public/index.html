@@ -31,6 +31,7 @@
             <a role="menuitem" href="/#settings" data-action="settings"><span class="menu-icon" aria-hidden="true">⚙</span><span data-i18n="menu.settings">Settings</span></a>
             <a role="menuitem" href="/#edit" data-action="edit"><span class="menu-icon" aria-hidden="true">✎</span><span data-i18n="menu.layout">Layout</span></a>
             <a role="menuitem" href="/#run" data-action="run"><span class="menu-icon" aria-hidden="true">▶</span><span data-i18n="menu.run">Run</span></a>
+            <a role="menuitem" href="/locomotives.html" data-action="locos"><span class="menu-icon" aria-hidden="true">🚂</span><span data-i18n="menu.locos">Locomotives</span></a>
             <a role="menuitem" href="/decoders.html" data-action="decoders"><span class="menu-icon" aria-hidden="true">⇄</span><span data-i18n="menu.decoders">Decoder test</span></a>
           </div>
         </div>
@@ -120,22 +121,6 @@
 
       <div class="tw-select">
         <select id="locoSelect" aria-label="Select locomotive" data-i18n-attr="aria-label:ctl.selectLoco"></select>
-        <button type="button" id="locoEditToggle" class="icon-button" aria-expanded="false" aria-controls="locoEdit" aria-label="Edit locomotive" title="Edit locomotive" data-i18n-attr="aria-label:ctl.editLoco; title:ctl.editLoco">✎</button>
-      </div>
-
-      <div id="locoEdit" class="tw-edit" hidden>
-        <label class="field">
-          <span data-i18n="ctl.nameLabel">Name</span>
-          <input id="controllerName" type="text" maxlength="40" />
-        </label>
-        <label class="field">
-          <span data-i18n="ctl.decoder">Decoder</span>
-          <input id="decoderId" type="number" min="1" max="10239" inputmode="numeric" required />
-        </label>
-        <div class="tw-edit-actions">
-          <button type="button" id="addController" class="ghost small" data-i18n="ctl.add">+ Add</button>
-          <button type="button" id="deleteController" class="ghost small danger-text" data-i18n="ctl.delete">Delete</button>
-        </div>
       </div>
 
       <div class="tw-speed">
@@ -146,6 +131,7 @@
       <div class="tw-drive">
         <input id="speed" class="speed-slider vertical" type="range" min="0" max="126" step="1" value="0" aria-label="Speed" aria-orientation="vertical" data-i18n-attr="aria-label:ctl.speed" />
         <div id="functionButtons" class="tw-functions" role="group" aria-label="Functions" data-i18n-attr="aria-label:ctl.functions">
+          <button type="button" id="lightButton" class="fn-button fn-light" aria-pressed="false" title="Light (F0)" data-i18n-attr="title:ctl.lightTitle"><span aria-hidden="true">💡</span> F0</button>
           <button type="button" class="fn-button" data-function="0" aria-pressed="false">F1</button>
           <button type="button" class="fn-button" data-function="1" aria-pressed="false">F2</button>
           <button type="button" class="fn-button" data-function="2" aria-pressed="false">F3</button>

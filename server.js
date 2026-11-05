@@ -130,11 +130,50 @@ app.get('/api/controllers', (_req, res) => {
   res.json(settingsStore.getControllers());
 });
 
+// Locomotives page: the list itself (name, decoder, max speed; add, remove, order).
+// The driving state (speed, direction, functions, light) of existing locomotives is kept,
+// so a list saved from one browser never resets a throttle in another.
 app.put('/api/controllers', (req, res) => {
   try {
-    return res.json(settingsStore.setControllers(req.body || {}));
+    const before = settingsStore.getControllers().controllers;
+    const byId = new Map(before.map((c) => [c.id, c]));
+    const body = req.body || {};
+    const controllers = (Array.isArray(body.controllers) ? body.controllers : []).map((c) => {
+      const old = c && byId.get(c.id);
+      if (!old) return { ...c, speed: 0, direction: 'forward', functions: [], light: false };
+      return { ...c, speed: old.speed, direction: old.direction, functions: old.functions, light: old.light };
+    });
+    const activeControllerId = settingsStore.getControllers().activeControllerId;
+    const result = settingsStore.setControllers({ controllers, activeControllerId: body.activeControllerId || activeControllerId });
+
+    // Blocks follow renamed and removed locomotives.
+    const after = new Map(result.controllers.map((c) => [c.id, c]));
+    before.forEach((old) => {
+      const now = after.get(old.id);
+      if (!now) blocks.renameLoco(old.name, null);
+      else if (now.name !== old.name) blocks.renameLoco(old.name, now.name);
+    });
+    return res.json(result);
   } catch (error) {
     return res.status(400).json({ error: error.message });
+  }
+});
+
+// Throttle: driving state of one locomotive.
+app.put('/api/controllers/:id/state', (req, res) => {
+  try {
+    return res.json(settingsStore.updateControllerState(req.params.id, req.body || {}));
+  } catch (error) {
+    return res.status(404).json({ error: error.message });
+  }
+});
+
+// Throttle: the selected locomotive.
+app.put('/api/controllers/active', (req, res) => {
+  try {
+    return res.json(settingsStore.setActiveController(String((req.body || {}).id || '')));
+  } catch (error) {
+    return res.status(404).json({ error: error.message });
   }
 });
 
@@ -383,25 +422,33 @@ app.post('/api/locomotive/control', (req, res) => {
     const direction = req.body.direction === 'reverse' ? 'reverse' : 'forward';
     const stop = Boolean(req.body.stop);
     const emergency = Boolean(req.body.emergency);
+    const light = Boolean(req.body.light);
 
     if (!Number.isInteger(decoderId) || decoderId <= 0) {
       return res.status(400).json({ error: 'Decoder ID must be a positive integer.' });
     }
 
+    // Never faster than the max speed set for this locomotive.
+    const controller = settingsStore.getControllers().controllers.find((c) => c.decoderId === decoderId);
+    const limit = controller ? controller.maxSpeed : SerialService.MAX_SPEED;
+    const capped = Math.min(Math.max(0, speed), limit);
+
     const result = serialService.sendLocomotiveCommand({
       decoderId,
-      speed: stop ? 0 : speed,
+      speed: stop ? 0 : capped,
       direction,
       stop,
-      emergency
+      emergency,
+      light
     });
-    locoSpeeds.set(decoderId, stop || emergency ? 0 : Math.max(0, Number(speed) || 0));
+    locoSpeeds.set(decoderId, stop || emergency ? 0 : capped);
 
     return res.json({
       ok: result.success,
       decoderId,
-      speed: stop ? 0 : Math.max(0, Math.min(SerialService.MAX_SPEED, speed)),
+      speed: stop ? 0 : capped,
       direction,
+      light,
       stop,
       packet: result.packet,
       error: result.error,

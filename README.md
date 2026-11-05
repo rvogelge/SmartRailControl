@@ -4,9 +4,9 @@ SmartRailControl is a small Raspberry Pi web app for controlling a model railway
 
 ## Features
 
-- One page with a burger menu (top right): **Settings**, **Layout** (edit the track plan) and **Run** (operate it)
-- Locomotive control window that appears in run mode: locomotive dropdown, vertical speed slider, function buttons F1–F4, direction, stop and emergency stop; it can be dragged anywhere and closed
-- Several saved locomotives (add, rename, delete); each keeps its decoder ID, speed, direction and F1–F4
+- One page with a burger menu (top right): **Settings**, **Layout** (edit the track plan), **Run** (operate it), **Locomotives** and **Decoder test**
+- Locomotive control window that appears in run mode: locomotive dropdown, vertical speed slider (shown as % of the locomotive's max speed), light (F0) and function buttons F1–F4, direction, stop and emergency stop; it can be dragged anywhere and closed
+- Locomotives page (menu → *Locomotives*): list of locomotives with name, decoder address and max speed (highest speed step of 126 the throttle sends); add, edit and remove. Renaming or removing a locomotive updates the block it occupies
 - Settings dialog: serial port and baud rate, user interface language (English / Deutsch), data location
 - Controllers, layout, rules and settings are stored on the Pi in one file (default `data/settings.json`, folder selectable), so every browser sees the same setup and it survives restarts
 - Track layout editor to draw a simple track plan on a square grid

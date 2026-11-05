@@ -109,3 +109,13 @@ test('legacy P50 function packet is 64 + f1-f4 bits, then the address', () => {
   assert.deepEqual(service.buildFunctionPacket({ decoderId: 24, functions: [true, true, false, true] }), [64 + 1 + 2 + 8, 24]);
   assert.throws(() => service.buildFunctionPacket({ decoderId: 81, functions: [] }));
 });
+
+test('the light (F0) is part of every locomotive command', () => {
+  process.env.SMARTRAILCONTROL_SERIAL_DISABLED = '1';
+  const service = new SerialService('/dev/null');
+  assert.deepEqual(service.buildP50XLocomotivePacket({ decoderId: 3, speed: 10, direction: 'forward', light: true }), [0x58, 0x80, 0x03, 0x00, 0x0b, 0x70]);
+  assert.deepEqual(service.buildP50XLocomotivePacket({ decoderId: 3, speed: 10, direction: 'reverse', light: false }), [0x58, 0x80, 0x03, 0x00, 0x0b, 0x40]);
+  // Legacy P50: +16 in the speed byte.
+  assert.deepEqual(service.buildLegacyP50LocomotivePacket({ decoderId: 3, speed: 126, direction: 'forward', light: true }), [0x1e, 0x03]);
+  delete process.env.SMARTRAILCONTROL_SERIAL_DISABLED;
+});

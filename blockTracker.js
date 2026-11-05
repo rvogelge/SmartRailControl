@@ -100,6 +100,19 @@ class BlockTracker {
     return { block: block.id, loco, freed: from ? [from.id] : [], ambiguous };
   }
 
+  // A locomotive was renamed (newName) or removed (null): its block keeps the train.
+  renameLoco(oldName, newName) {
+    let changed = false;
+    this.occupied.forEach((value) => {
+      if (value.loco === oldName) {
+        value.loco = cleanLoco(newName);
+        changed = true;
+      }
+    });
+    if (changed) this.save();
+    return changed;
+  }
+
   // The block a locomotive is in, or null.
   blockOfLoco(loco) {
     const entry = [...this.occupied].find(([, value]) => value.loco === loco);

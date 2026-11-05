@@ -1,10 +1,15 @@
 /* global t */
 // Locomotive control window: shown over the track layout in run mode.
+// Locomotives are added and edited on the Locomotives page; this window only drives
+// them. It saves the driving state of the selected locomotive (speed, direction,
+// functions, light) and picks up changes to the list from the server.
 (() => {
 const $ = (id) => document.getElementById(id);
 
 const FUNCTION_COUNT = 4;
+const MAX_SPEED = 126;
 const POSITION_KEY = 'smartrailcontrol.throttlePosition';
+const REFRESH_MS = 5000;
 
 const el = {
   window: $('throttleWindow'),
@@ -14,17 +19,12 @@ const el = {
   topbar: document.querySelector('.topbar'),
   open: $('throttleOpen'),
   select: $('locoSelect'),
-  editToggle: $('locoEditToggle'),
-  edit: $('locoEdit'),
-  name: $('controllerName'),
-  decoderId: $('decoderId'),
-  addController: $('addController'),
-  deleteController: $('deleteController'),
   speed: $('speed'),
   speedValue: $('speedValue'),
   directionBadge: $('directionBadge'),
   directions: $('directionSwitch').querySelectorAll('[data-direction]'),
   functions: $('functionButtons').querySelectorAll('[data-function]'),
+  light: $('lightButton'),
   stop: $('stopButton'),
   emergency: $('emergencyButton'),
   response: $('responseBox')
@@ -52,15 +52,21 @@ const storage = {
   }
 };
 
-// crypto.randomUUID is unavailable on plain-http LAN pages, so build our own id.
-const newId = () => `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-
-const normalize = (c) => ({
-  ...c,
-  functions: Array.from({ length: FUNCTION_COUNT }, (_v, i) => Boolean(c.functions && c.functions[i]))
-});
+const normalize = (c) => {
+  const maxSpeed = Math.max(1, Math.min(MAX_SPEED, Number(c.maxSpeed) || MAX_SPEED));
+  return {
+    ...c,
+    maxSpeed,
+    speed: Math.max(0, Math.min(maxSpeed, Number(c.speed) || 0)),
+    light: Boolean(c.light),
+    functions: Array.from({ length: FUNCTION_COUNT }, (_v, i) => Boolean(c.functions && c.functions[i]))
+  };
+};
 
 const active = () => state.controllers.find((c) => c.id === state.activeId) || state.controllers[0];
+
+// Speed as a percentage of the locomotive's max speed.
+const percent = (c) => Math.round((c.speed / c.maxSpeed) * 100);
 
 const setMessage = (text, kind = '') => {
   el.response.textContent = text;
@@ -86,20 +92,32 @@ const reportStatus = (status) => {
 
 /* ---------- Persistence ---------- */
 
-let saveTimer = null;
-const scheduleSave = () => {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    try {
-      const data = await api('/api/controllers', {
-        method: 'PUT',
-        body: JSON.stringify({ controllers: state.controllers, activeControllerId: state.activeId })
-      });
-      state.activeId = data.activeControllerId;
-    } catch (error) {
-      setMessage(t('ctl.saveFailed', { msg: error.message }), 'error');
-    }
-  }, 400);
+// Driving state, per locomotive (switching locomotives never loses a pending save).
+const saveTimers = new Map();
+const saveState = (c) => {
+  clearTimeout(saveTimers.get(c.id));
+  saveTimers.set(
+    c.id,
+    setTimeout(async () => {
+      saveTimers.delete(c.id);
+      try {
+        await api(`/api/controllers/${encodeURIComponent(c.id)}/state`, {
+          method: 'PUT',
+          body: JSON.stringify({ speed: c.speed, direction: c.direction, functions: c.functions, light: c.light })
+        });
+      } catch (error) {
+        setMessage(t('ctl.saveFailed', { msg: error.message }), 'error');
+      }
+    }, 400)
+  );
+};
+
+const saveActive = async () => {
+  try {
+    await api('/api/controllers/active', { method: 'PUT', body: JSON.stringify({ id: state.activeId }) });
+  } catch (error) {
+    setMessage(t('ctl.saveFailed', { msg: error.message }), 'error');
+  }
 };
 
 /* ---------- Rendering ---------- */
@@ -115,14 +133,14 @@ const renderSelect = () => {
     })
   );
   el.select.value = state.activeId;
-  el.address.textContent = `#${active().decoderId}`;
-  el.deleteController.hidden = state.controllers.length <= 1;
+  el.address.textContent = active() ? `#${active().decoderId}` : '';
 };
 
 const renderSpeed = (c) => {
-  el.speedValue.textContent = c.speed;
+  el.speed.max = String(c.maxSpeed);
   el.speed.value = c.speed;
-  el.speed.style.setProperty('--fill', `${(c.speed / Number(el.speed.max)) * 100}%`);
+  el.speedValue.textContent = `${percent(c)}%`;
+  el.speed.style.setProperty('--fill', `${percent(c)}%`);
 };
 
 const renderDirection = (c) => {
@@ -136,14 +154,13 @@ const renderFunctions = (c) => {
   el.functions.forEach((button) => {
     button.setAttribute('aria-pressed', String(c.functions[Number(button.dataset.function)]));
   });
+  el.light.setAttribute('aria-pressed', String(c.light));
 };
 
 const render = () => {
   const c = active();
   if (!c) return;
   renderSelect();
-  if (document.activeElement !== el.name) el.name.value = c.name;
-  if (document.activeElement !== el.decoderId) el.decoderId.value = c.decoderId;
   renderSpeed(c);
   renderDirection(c);
   renderFunctions(c);
@@ -151,19 +168,20 @@ const render = () => {
 
 /* ---------- Locomotive commands ---------- */
 
-const sendCommand = async ({ stop = false, emergency = false } = {}) => {
+// Speed, direction and light (F0) go together in one locomotive command.
+const sendCommand = async ({ stop = false, emergency = false, message = null } = {}) => {
   const c = active();
   if (!c) return;
   try {
     const data = await api('/api/locomotive/control', {
       method: 'POST',
-      body: JSON.stringify({ decoderId: c.decoderId, speed: c.speed, direction: c.direction, stop, emergency })
+      body: JSON.stringify({ decoderId: c.decoderId, speed: c.speed, direction: c.direction, light: c.light, stop, emergency })
     });
     reportStatus(data.status);
     if (!data.ok) throw new Error(data.error || t('ctl.sendFailed'));
 
     const dir = c.direction === 'reverse' ? t('ctl.dirReverse') : t('ctl.dirForward');
-    const label = emergency ? t('ctl.emergency') : stop ? t('ctl.stopped') : t('ctl.speedDir', { speed: c.speed, dir });
+    const label = message || (emergency ? t('ctl.emergency') : stop ? t('ctl.stopped') : t('ctl.speedDir', { speed: `${percent(c)}%`, dir }));
     setMessage(label, 'ok');
   } catch (error) {
     setMessage(error.message, 'error');
@@ -204,7 +222,7 @@ const throttledSend = () => {
 
 const updateActive = (changes) => {
   Object.assign(active(), changes);
-  scheduleSave();
+  saveState(active());
 };
 
 el.speed.addEventListener('input', () => {
@@ -239,6 +257,12 @@ el.functions.forEach((button) => {
   });
 });
 
+el.light.addEventListener('click', () => {
+  updateActive({ light: !active().light });
+  renderFunctions(active());
+  sendCommand({ message: t(active().light ? 'ctl.lightOn' : 'ctl.lightOff') });
+});
+
 const halt = (options) => {
   clearTimeout(pendingSend);
   updateActive({ speed: 0 });
@@ -249,87 +273,33 @@ const halt = (options) => {
 el.stop.addEventListener('click', () => halt({ stop: true }));
 el.emergency.addEventListener('click', () => halt({ emergency: true }));
 
-/* ---------- Locomotive selection and editing ---------- */
+/* ---------- Locomotive selection ---------- */
 
 el.select.addEventListener('change', () => {
   state.activeId = el.select.value;
   render();
-  scheduleSave();
+  saveActive();
   setMessage(t('ctl.selected', { name: active().name }));
 });
 
-el.editToggle.addEventListener('click', () => {
-  const open = el.edit.hidden;
-  el.edit.hidden = !open;
-  el.editToggle.setAttribute('aria-expanded', String(open));
-  if (open) el.name.focus();
-});
-
-el.addController.addEventListener('click', () => {
-  const usedIds = new Set(state.controllers.map((c) => c.decoderId));
-  let decoderId = 3;
-  while (usedIds.has(decoderId)) decoderId += 1;
-
-  const controller = normalize({
-    id: newId(),
-    name: t('ctl.newLoco', { n: state.controllers.length + 1 }),
-    decoderId,
-    speed: 0,
-    direction: 'forward'
-  });
-  state.controllers.push(controller);
-  state.activeId = controller.id;
-  render();
-  scheduleSave();
-  el.name.focus();
-  el.name.select();
-});
-
-el.deleteController.addEventListener('click', () => {
-  if (state.controllers.length <= 1) return;
-  const c = active();
-  if (el.deleteController.dataset.confirm !== c.id) {
-    el.deleteController.dataset.confirm = c.id;
-    el.deleteController.textContent = t('ctl.deleteConfirm');
-    setTimeout(() => {
-      delete el.deleteController.dataset.confirm;
-      el.deleteController.textContent = t('ctl.delete');
-    }, 3000);
-    return;
-  }
-
-  delete el.deleteController.dataset.confirm;
-  el.deleteController.textContent = t('ctl.delete');
-  state.controllers = state.controllers.filter((x) => x.id !== c.id);
-  state.activeId = state.controllers[0].id;
-  render();
-  scheduleSave();
-  setMessage(t('ctl.deleted', { name: c.name }));
-});
-
-el.name.addEventListener('input', () => {
-  updateActive({ name: el.name.value.slice(0, 40) });
-  renderSelect();
-});
-
-el.name.addEventListener('blur', () => {
-  if (!el.name.value.trim()) {
-    updateActive({ name: t('ctl.newLoco', { n: active().decoderId }) });
+// Locomotives added, renamed or removed on the Locomotives page (or in another browser):
+// take over the list; this window keeps the driving state it has for each locomotive.
+const refresh = async () => {
+  try {
+    const data = await api('/api/controllers');
+    const local = new Map(state.controllers.map((c) => [c.id, c]));
+    const next = data.controllers.map((c) => {
+      const mine = local.get(c.id);
+      return normalize(mine ? { ...c, speed: mine.speed, direction: mine.direction, functions: mine.functions, light: mine.light } : c);
+    });
+    if (JSON.stringify(next) === JSON.stringify(state.controllers)) return;
+    state.controllers = next;
+    if (!next.some((c) => c.id === state.activeId)) state.activeId = data.activeControllerId;
     render();
+  } catch (_error) {
+    // Server not reachable: try again later.
   }
-});
-
-el.decoderId.addEventListener('change', () => {
-  const value = Number(el.decoderId.value);
-  if (!Number.isInteger(value) || value < 1 || value > 10239) {
-    setMessage(t('ctl.decoderRange'), 'error');
-    el.decoderId.value = active().decoderId;
-    return;
-  }
-  updateActive({ decoderId: value });
-  renderSelect();
-  setMessage(t('ctl.decoderSet', { value }));
-});
+};
 
 /* ---------- Window: show, hide, drag ---------- */
 
@@ -416,8 +386,6 @@ const init = async () => {
     state.controllers = data.controllers.map(normalize);
     state.activeId = data.activeControllerId;
   } catch (error) {
-    state.controllers = [normalize({ id: newId(), name: 'Locomotive', decoderId: 3, speed: 0, direction: 'forward' })];
-    state.activeId = state.controllers[0].id;
     setMessage(t('ctl.loadFailed', { msg: error.message }), 'error');
   }
   render();
@@ -426,6 +394,10 @@ const init = async () => {
 };
 
 window.addEventListener('languagechange', render);
+window.addEventListener('focus', refresh);
+setInterval(() => {
+  if (document.visibilityState === 'visible') refresh();
+}, REFRESH_MS);
 
 init();
 })();
