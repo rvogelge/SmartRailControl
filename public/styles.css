@@ -2302,6 +2302,11 @@ body:not([data-mode='run']) .run-only {
   }
 }
 
+/* Secondary windows: ✕ top right instead of the burger menu */
+.window-close {
+  font-size: 1.1rem;
+}
+
 /* Rules window: rules grouped by route */
 .route-group {
   display: grid;

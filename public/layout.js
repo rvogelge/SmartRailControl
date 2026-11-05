@@ -1291,13 +1291,16 @@ const pollLive = async () => {
   }
 };
 
-// Blocks and Fahrstraßen in their own window, next to the layout.
-const openBlocksWindow = () => {
-  const win = window.open('/blocks.html', 'smartrailcontrol-blocks', 'popup,width=1100,height=820');
+// Secondary pages open in their own window next to the layout (they have no menu, only ✕).
+const openWindow = (path, name, width, height) => {
+  const win = window.open(path, name, `popup,width=${width},height=${height}`);
   if (win) win.focus();
-  else location.href = '/blocks.html'; // Popups blocked: open it here instead.
+  else location.href = path; // Popups blocked: open it here instead.
 };
+const openBlocksWindow = () => openWindow('/blocks.html', 'smartrailcontrol-blocks', 1100, 820);
 window.SmartRailControl.blocks = openBlocksWindow;
+window.SmartRailControl.locos = () => openWindow('/locomotives.html', 'smartrailcontrol-locos', 980, 720);
+window.SmartRailControl.decoders = () => openWindow('/decoders.html', 'smartrailcontrol-decoders', 1100, 820);
 
 // The Blocks window highlights the blocks hovered there.
 if (typeof BroadcastChannel === 'function') {
@@ -1310,11 +1313,7 @@ if (typeof BroadcastChannel === 'function') {
   });
 }
 
-const openRulesWindow = () => {
-  const win = window.open('/rules.html', 'smartrailcontrol-rules', 'popup,width=1180,height=820');
-  if (win) win.focus();
-  else location.href = '/rules.html'; // Popups blocked: open it here instead.
-};
+const openRulesWindow = () => openWindow('/rules.html', 'smartrailcontrol-rules', 1180, 820);
 
 const placeTile = (cell) => {
   const fit = checkFit(state.tool, cell.x, cell.y, state.placeRotation);

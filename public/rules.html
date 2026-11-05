@@ -19,19 +19,7 @@
 
       <div class="topbar-actions">
         <span id="saveState" class="save-state" aria-live="polite" data-i18n="common.saved">Saved</span>
-        <div class="menu">
-          <button type="button" id="menuButton" class="icon-button menu-button" aria-haspopup="menu" aria-expanded="false" aria-controls="mainMenu" aria-label="Menu" title="Menu" data-i18n-attr="aria-label:menu.title; title:menu.title">
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M4 6.25A.75.75 0 0 1 4.75 5.5h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 6.25Zm0 5.75a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 12Zm.75 5a.75.75 0 0 0 0 1.5h14.5a.75.75 0 0 0 0-1.5H4.75Z"/></svg>
-          </button>
-          <div id="mainMenu" class="menu-list" role="menu" aria-labelledby="menuButton" hidden>
-            <a role="menuitem" href="/#settings" data-action="settings"><span class="menu-icon" aria-hidden="true">⚙</span><span data-i18n="menu.settings">Settings</span></a>
-            <a role="menuitem" href="/#edit" data-action="edit"><span class="menu-icon" aria-hidden="true">✎</span><span data-i18n="menu.layout">Layout</span></a>
-            <a role="menuitem" href="/#run" data-action="run"><span class="menu-icon" aria-hidden="true">▶</span><span data-i18n="menu.run">Run</span></a>
-            <a role="menuitem" href="/locomotives.html" data-action="locos"><span class="menu-icon" aria-hidden="true">🚂</span><span data-i18n="menu.locos">Locomotives</span></a>
-            <a role="menuitem" href="/blocks.html" data-action="blocks"><span class="menu-icon" aria-hidden="true">▤</span><span data-i18n="menu.blocks">Blocks</span></a>
-            <a role="menuitem" href="/decoders.html" data-action="decoders"><span class="menu-icon" aria-hidden="true">⇄</span><span data-i18n="menu.decoders">Decoder test</span></a>
-          </div>
-        </div>
+        <button type="button" id="windowClose" class="icon-button window-close" aria-label="Close" title="Close" data-i18n-attr="aria-label:common.close; title:common.close">✕</button>
       </div>
     </header>
 
@@ -79,6 +67,6 @@
     <script src="trackCatalog.js"></script>
     <script src="i18n.js"></script>
     <script src="rules.js"></script>
-    <script src="menu.js"></script>
+    <script src="window.js"></script>
   </body>
 </html>
