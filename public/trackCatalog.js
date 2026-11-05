@@ -19,7 +19,6 @@
   // footprint: { size, cells } — an element occupies an size×size block; `cells`
   // lists the squares (at rotation 0) its track actually uses. Default: 1×1.
   // links: which track ends are joined inside the element (at rotation 0), see TRACK_ENDS.
-  // routes (turnouts): which links each position connects.
   // A train entering at one end may leave at any end it is linked to (all turnout routes).
   const TYPES = {
     straight: { label: 'Straight', links: [['W', 'E']] },
@@ -35,7 +34,6 @@
     'turnout-left': {
       label: 'Turnout left',
       links: [['W', 'E'], ['W', 'NE']],
-      routes: { straight: [['W', 'E']], diverging: [['W', 'NE']] },
       stateLabels: { straight: 'straight', diverging: 'diverging' },
       states: ['straight', 'diverging'],
       addresses: ['Turnout address'],
@@ -44,7 +42,6 @@
     'turnout-right': {
       label: 'Turnout right',
       links: [['W', 'E'], ['W', 'SE']],
-      routes: { straight: [['W', 'E']], diverging: [['W', 'SE']] },
       stateLabels: { straight: 'straight', diverging: 'diverging' },
       states: ['straight', 'diverging'],
       addresses: ['Turnout address'],
@@ -53,7 +50,6 @@
     'turnout-3way': {
       label: 'Three-way turnout',
       links: [['W', 'E'], ['W', 'NE'], ['W', 'SE']],
-      routes: { straight: [['W', 'E']], left: [['W', 'NE']], right: [['W', 'SE']] },
       stateLabels: { straight: 'straight', left: 'left', right: 'right' },
       states: ['straight', 'left', 'right'],
       addresses: ['Drive 1 (left)', 'Drive 2 (right)'],
@@ -67,7 +63,6 @@
     'double-slip': {
       label: 'Crossover switch',
       links: [['W', 'E'], ['SW', 'NE'], ['W', 'NE'], ['SW', 'E']],
-      routes: { straight: [['W', 'E'], ['SW', 'NE']], turn: [['W', 'NE'], ['SW', 'E']] },
       stateLabels: { straight: 'straight', turn: 'turning' },
       states: ['straight', 'turn'],
       // Only two states, so both drives are wired to one decoder output.
@@ -257,60 +252,6 @@
     });
   };
 
-  // The way from block `fromId` into block `toId` for a train running in block direction:
-  // { tiles: [ids], turnouts: { tile id: state } } with the turnout positions it needs,
-  // or null when there is no track connection. The train has to enter `toId` at the back
-  // of its start contact (the end opposite the arrow); other block starts are not passed.
-  const findPath = (tiles, fromId, toId) => {
-    const byId = new Map(tiles.map((t) => [t.id, t]));
-    const from = byId.get(fromId);
-    const to = byId.get(toId);
-    if (!from || !to || !isBlockStart(from) || !isBlockStart(to)) return null;
-
-    const ends = new Map();
-    tiles.forEach((tile) => {
-      new Set(linksOf(tile.type).flat().filter(Boolean)).forEach((name) => {
-        const end = tileEnd(tile, name);
-        if (!ends.has(end.key)) ends.set(end.key, []);
-        ends.get(end.key).push({ tile, name });
-      });
-    });
-    const meeting = (end) => ends.get(`${end.x},${end.y},${OPPOSITE[end.dir]}`) || [];
-    const stateFor = (tile, a, b) => {
-      const routes = (TYPES[tile.type] && TYPES[tile.type].routes) || {};
-      return Object.keys(routes).find((state) =>
-        routes[state].some(([x, y]) => (x === a && y === b) || (x === b && y === a))
-      );
-    };
-    const backEnd = to.block === 'left' ? 'E' : 'W';
-
-    const queue = [{ exit: tileEnd(from, from.block === 'left' ? 'W' : 'E'), tiles: [from.id], turnouts: {} }];
-    const visited = new Set();
-    while (queue.length) {
-      const { exit, tiles: path, turnouts } = queue.shift();
-      for (const { tile, name } of meeting(exit)) {
-        if (tile.id === to.id) {
-          if (name === backEnd) return { tiles: [...path, to.id], turnouts };
-          continue;
-        }
-        if (isBlockStart(tile) || visited.has(`${tile.id}:${name}`)) continue;
-        visited.add(`${tile.id}:${name}`);
-        linksOf(tile.type).forEach(([a, b]) => {
-          const other = a === name ? b : b === name ? a : undefined;
-          if (!other) return;
-          let next = turnouts;
-          if (isTurnout(tile.type)) {
-            const state = stateFor(tile, name, other);
-            if (!state || (turnouts[tile.id] && turnouts[tile.id] !== state)) return;
-            next = { ...turnouts, [tile.id]: state };
-          }
-          queue.push({ exit: tileEnd(tile, other), tiles: [...path, tile.id], turnouts: next });
-        });
-      }
-    }
-    return null;
-  };
-
   // Where the loco name of a block is shown: the middle straight track, else the middle tile.
   const blockLabelTile = (block, tiles) => {
     const byId = new Map(tiles.map((t) => [t.id, t]));
@@ -327,12 +268,14 @@
   // Logic rules: what each element can be used for and which states apply.
   // A sensor can start a rule, a condition can test any element with a state,
   // an action can switch any element that has commands.
+  // Triggers: contacts (on / off), and switchable elements switched by hand (their states).
   const ruleRoles = (type) => ({
-    trigger: Boolean(sensorStatesOf(type)),
+    trigger: Boolean(sensorStatesOf(type) || statesOf(type)),
     condition: Boolean(sensorStatesOf(type) || statesOf(type)),
     action: Boolean(statesOf(type) || isMomentary(type))
   });
   const conditionStates = (type) => sensorStatesOf(type) || statesOf(type) || [];
+  const triggerStates = conditionStates;
   const actionStates = (type) => statesOf(type) || (isMomentary(type) ? ['trigger'] : []);
   const labelOf = (type) => (TYPES[type] && TYPES[type].label) || type;
   const stateLabel = (type, state) =>
@@ -348,6 +291,7 @@
     isMomentary,
     ruleRoles,
     conditionStates,
+    triggerStates,
     actionStates,
     labelOf,
     stateLabel,
@@ -362,7 +306,6 @@
     isBlockStart,
     isTurnout,
     findBlocks,
-    findPath,
     blockLabelTile,
     tileEnd,
     canInvert,

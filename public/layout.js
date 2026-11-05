@@ -1194,7 +1194,8 @@ const sendOperation = async (tile, newState, label) => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || tr('lay.rejected'));
     if (data.sent) {
-      setStatus(tr('lay.sent', { label }), 'ok');
+      const fired = data.fired && data.fired.length ? ` — ${tr('rules.fired', { n: data.fired.length })}` : '';
+      setStatus(`${tr('lay.sent', { label })}${fired}`, 'ok');
     } else {
       setStatus(tr('lay.notSent', { label, msg: data.error }), 'error');
     }

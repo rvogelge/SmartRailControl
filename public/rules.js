@@ -1,7 +1,9 @@
 /* global TrackCatalog, I18n */
 // Logic rules editor (separate window). Rules are saved on the server and run there:
-// WHEN <contact> turns on/off · AND IF <element> is <state> … · THEN <element> → <state> (after n s) …
-const { ruleRoles, conditionStates, actionStates, addressSlots, sensorStatesOf } = TrackCatalog;
+// WHEN <contact> turns on/off | <turnout/signal> is switched to <state> (by hand)
+// · AND IF <element> is <state> … · THEN <element> → <state> | loco in <block> → n % (after n s) …
+// Rules are grouped by route (Fahrstraße); a route's switch turns all its rules on or off.
+const { ruleRoles, conditionStates, triggerStates, actionStates, addressSlots, sensorStatesOf } = TrackCatalog;
 // Translated texts (`t` is used for tiles in this file).
 const tr = (key, vars) => I18n.t(key, vars);
 const labelOf = (type) => I18n.label(type);
@@ -25,6 +27,7 @@ const ui = {
   feedback: $('feedbackStatus'),
   ruleList: $('ruleList'),
   addRule: $('addRule'),
+  addRoute: $('addRoute'),
   logList: $('logList'),
   saveState: $('saveState'),
   status: $('statusLine'),
@@ -36,6 +39,8 @@ const ui = {
 const state = {
   tiles: [],
   rules: [],
+  routes: [], // rule groups: [{ id, name }]
+  blocks: [], // [{ id, number }] for loco actions
   live: { states: {}, sensors: {}, log: [] },
   filter: null // device id: show only rules that use it
 };
@@ -88,7 +93,13 @@ const currentState = (tile) => {
 };
 
 const ruleUses = (rule, id) =>
-  rule.trigger.device === id || rule.conditions.some((c) => c.device === id) || rule.actions.some((a) => a.device === id);
+  rule.trigger.device === id || rule.conditions.some((c) => c.device === id) || rule.actions.some((a) => a.device === id || a.block === id);
+
+const isLocoAction = (action) => action.type === 'loco';
+const blockLabel = (id) => {
+  const block = state.blocks.find((b) => b.id === id);
+  return block ? `B${block.number}` : tr('rules.removedBlock');
+};
 
 /* ---------- Persistence ---------- */
 
@@ -102,7 +113,7 @@ const scheduleSave = () => {
       const response = await fetch('/api/rules', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rules: state.rules })
+        body: JSON.stringify({ rules: state.rules, routes: state.routes })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Save failed.');
@@ -142,10 +153,14 @@ const ruleProblems = (rule) => {
   };
   check(rule.trigger, 'Sensor');
   rule.conditions.forEach((c) => check(c, 'Condition'));
-  rule.actions.forEach((a) => check(a, 'Action'));
+  rule.actions.forEach((a) => {
+    if (!isLocoAction(a)) check(a, 'Action');
+    else if (!a.block) problems.push(tr('rules.chooseBlock'));
+    else if (!state.blocks.some((b) => b.id === a.block)) problems.push(tr('rules.blockRemoved'));
+  });
   if (rule.actions.length === 0) problems.push(tr('rules.noActions'));
   const sensor = tileById(rule.trigger.device);
-  if (sensor && /^[?/]+$/.test(addressText(sensor))) problems.push(tr('rules.noContactNo'));
+  if (sensor && sensorStatesOf(sensor.type) && /^[?/]+$/.test(addressText(sensor))) problems.push(tr('rules.noContactNo'));
   return [...new Set(problems)];
 };
 
@@ -156,14 +171,19 @@ const nameOf = (id) => {
 
 const summary = (rule) => {
   const sensor = tileById(rule.trigger.device);
-  const when = tr('rules.sumWhen', { sensor: nameOf(rule.trigger.device), state: tr(`sensorWord.${rule.trigger.state}`) });
+  const when =
+    sensor && !sensorStatesOf(sensor.type)
+      ? tr('rules.sumWhenSwitched', { name: nameOf(rule.trigger.device), state: stateLabel(sensor.type, rule.trigger.state) })
+      : tr('rules.sumWhen', { sensor: nameOf(rule.trigger.device), state: tr(`sensorWord.${rule.trigger.state}`) });
   const conds = rule.conditions.map((c) => {
     const tile = tileById(c.device);
     return tr('rules.sumIs', { name: nameOf(c.device), state: tile ? stateLabel(tile.type, c.state) : c.state });
   });
   const acts = rule.actions.map((a) => {
     const tile = tileById(a.device);
-    const what = `${nameOf(a.device)} → ${tile ? stateLabel(tile.type, a.state) : a.state}`;
+    const what = isLocoAction(a)
+      ? tr('rules.sumLoco', { block: a.block ? blockLabel(a.block) : '?', speed: a.speed })
+      : `${nameOf(a.device)} → ${tile ? stateLabel(tile.type, a.state) : a.state}`;
     return a.delay > 0 ? tr('rules.sumAfter', { s: a.delay, what }) : what;
   });
   if (!sensor && !rule.trigger.device) return tr('rules.incomplete');
@@ -275,17 +295,23 @@ const renderRule = (rule, index) => {
   const problems = ruleProblems(rule);
   const used = state.filter && ruleUses(rule, state.filter);
 
+  // Contacts turn on / off; turnouts and signals are switched (by hand) to a state.
+  const triggerTile = tileById(rule.trigger.device);
+  const switched = triggerTile && !sensorStatesOf(triggerTile.type);
   const triggerRow = el(
     'div',
     { className: 'rule-row' },
     el('span', { className: 'rule-kw when', text: tr('rules.when') }),
     deviceSelect('trigger', rule.trigger.device, 'trigger.device'),
-    el('span', { className: 'rule-word', text: tr('rules.turns') }),
-    el(
-      'select',
-      { 'data-field': 'trigger.state', 'aria-label': tr('rules.sensorState') },
-      ...['on', 'off'].map((s) => el('option', { value: s, text: stateLabel('contact', s), selected: s === rule.trigger.state }))
-    )
+    el('span', { className: 'rule-word', text: tr(switched ? 'rules.switchedTo' : 'rules.turns') }),
+    switched
+      ? stateSelect('trigger', rule.trigger, 'trigger.state')
+      : el(
+          'select',
+          { 'data-field': 'trigger.state', 'aria-label': tr('rules.sensorState') },
+          ...['on', 'off'].map((s) => el('option', { value: s, text: stateLabel('contact', s), selected: s === rule.trigger.state }))
+        ),
+    switched ? el('span', { className: 'rule-word muted', text: tr('rules.byHand') }) : null
   );
 
   const conditionRows = rule.conditions.map((c, i) =>
@@ -300,8 +326,40 @@ const renderRule = (rule, index) => {
     )
   );
 
-  const actionRows = rule.actions.map((a, i) =>
+  const locoActionRow = (a, i) =>
     el(
+      'div',
+      { className: 'rule-row' },
+      el('span', { className: 'rule-kw then', text: tr(i === 0 ? 'rules.then' : 'rules.andThen') }),
+      el('span', { className: 'rule-word', text: tr('rules.setSpeedOf') }),
+      el(
+        'select',
+        { 'data-field': `actions.${i}.block`, 'aria-label': tr('rules.block') },
+        !a.block ? el('option', { value: '', text: tr(state.blocks.length ? 'rules.chooseBlockOption' : 'rules.noBlocks'), selected: true }) : null,
+        a.block && !state.blocks.some((b) => b.id === a.block) ? el('option', { value: a.block, text: tr('rules.removedBlock'), selected: true }) : null,
+        ...state.blocks.map((b) => el('option', { value: b.id, text: `B${b.number}`, selected: b.id === a.block }))
+      ),
+      el('span', { className: 'rule-word', text: tr('rules.to') }),
+      el(
+        'label',
+        { className: 'delay-field speed-field', title: tr('rules.speedTitle') },
+        el('input', { type: 'number', min: '0', max: '100', step: '5', value: String(a.speed || 0), 'data-field': `actions.${i}.speed`, 'aria-label': tr('rules.speed') }),
+        el('span', { text: '%' })
+      ),
+      el(
+        'label',
+        { className: 'delay-field', title: tr('rules.delayTitle') },
+        el('span', { text: tr('rules.after') }),
+        el('input', { type: 'number', min: '0', max: '3600', step: '0.5', value: String(a.delay || 0), 'data-field': `actions.${i}.delay` }),
+        el('span', { text: 's' })
+      ),
+      removeButton(`actions.${i}`, tr('rules.removeAction'))
+    );
+
+  const actionRows = rule.actions.map((a, i) =>
+    isLocoAction(a)
+      ? locoActionRow(a, i)
+      : el(
       'div',
       { className: 'rule-row' },
       el('span', { className: 'rule-kw then', text: tr(i === 0 ? 'rules.then' : 'rules.andThen') }),
@@ -334,6 +392,12 @@ const renderRule = (rule, index) => {
       ),
       el('input', { className: 'rule-name', type: 'text', maxlength: '60', value: rule.name, 'data-field': 'name', 'aria-label': tr('rules.nameAria') }),
       el('span', { className: 'rule-index', text: `#${index + 1}` }),
+      el(
+        'select',
+        { className: 'rule-route', 'data-field': 'route', 'aria-label': tr('rg.routeOfRule'), title: tr('rg.routeOfRule') },
+        el('option', { value: '', text: tr('rg.noRoute'), selected: !rule.route }),
+        ...state.routes.map((r) => el('option', { value: r.id, text: r.name, selected: rule.route === r.id }))
+      ),
       el('button', { type: 'button', className: 'ghost small', 'data-action': 'duplicate', text: tr('rules.duplicate') }),
       el('button', { type: 'button', className: 'ghost small danger-text', 'data-action': 'delete', text: tr('rules.delete') })
     ),
@@ -341,11 +405,63 @@ const renderRule = (rule, index) => {
     ...conditionRows,
     el('div', { className: 'rule-row add-row' }, el('button', { type: 'button', className: 'link-button', 'data-action': 'add-condition', text: tr('rules.addCondition') })),
     ...actionRows,
-    el('div', { className: 'rule-row add-row' }, el('button', { type: 'button', className: 'link-button', 'data-action': 'add-action', text: tr('rules.addAction') })),
+    el(
+      'div',
+      { className: 'rule-row add-row' },
+      el('button', { type: 'button', className: 'link-button', 'data-action': 'add-action', text: tr('rules.addAction') }),
+      el('button', { type: 'button', className: 'link-button', 'data-action': 'add-loco-action', text: tr('rules.addLocoAction') })
+    ),
     el('p', { className: 'rule-summary', text: summary(rule) }),
     problems.length ? el('ul', { className: 'rule-problems' }, ...problems.map((p) => el('li', { text: p }))) : null
   );
 };
+
+// Switch state of a route: all of its rules on, all off, or some.
+const routeState = (route) => {
+  const rules = state.rules.filter((r) => r.route === route.id);
+  const on = rules.filter((r) => r.enabled).length;
+  return { rules, on, all: rules.length > 0 && on === rules.length, none: on === 0, partly: on > 0 && on < rules.length };
+};
+
+const renderRouteGroup = (route, items) => {
+  if (state.filter && items.length === 0) return null;
+  const { rules, on, all, partly } = routeState(route);
+  const toggle = el('input', {
+    type: 'checkbox',
+    'data-route-field': 'active',
+    checked: all,
+    disabled: rules.length === 0,
+    'aria-label': tr('rg.switchAria', { name: route.name })
+  });
+  toggle.indeterminate = partly;
+  const status = rules.length === 0 ? tr('rg.noRules') : partly ? tr('rg.partly', { on, n: rules.length }) : tr(all ? 'rg.allOn' : 'rg.allOff', { n: rules.length });
+  return el(
+    'section',
+    { className: `route-group${all ? ' active' : partly ? ' partly' : ''}`, 'data-route': route.id },
+    el(
+      'div',
+      { className: 'route-group-head' },
+      el('label', { className: 'switch', title: tr('rg.switchTitle') }, toggle, el('span', { className: 'switch-track', 'aria-hidden': 'true' })),
+      el('input', { className: 'route-group-name', type: 'text', maxlength: '40', value: route.name, 'data-route-field': 'name', 'aria-label': tr('rg.nameAria') }),
+      el('span', { className: 'route-group-status', text: status }),
+      el('button', { type: 'button', className: 'ghost small', 'data-route-action': 'add-rule', text: tr('rg.addRule') }),
+      el('button', { type: 'button', className: 'ghost small danger-text', 'data-route-action': 'delete', text: tr('rg.delete') })
+    ),
+    items.length
+      ? el('div', { className: 'route-group-rules' }, ...items.map(({ rule, index }) => renderRule(rule, index)))
+      : el('p', { className: 'route-group-empty', text: tr('rg.empty') })
+  );
+};
+
+const renderLooseGroup = (items) =>
+  el(
+    'section',
+    { className: 'route-group loose' },
+    state.routes.length ? el('div', { className: 'route-group-head' }, el('h3', { text: tr('rg.withoutRoute') })) : null,
+    items.length
+      ? el('div', { className: 'route-group-rules' }, ...items.map(({ rule, index }) => renderRule(rule, index)))
+      : el('p', { className: 'route-group-empty', text: tr('rg.looseEmpty') })
+  );
 
 const renderRules = () => {
   // Keep focus on the same field across re-renders.
@@ -355,14 +471,19 @@ const renderRules = () => {
 
   const visible = state.rules.map((rule, index) => ({ rule, index })).filter(({ rule }) => !state.filter || ruleUses(rule, state.filter));
 
-  if (state.rules.length === 0) {
+  if (state.rules.length === 0 && state.routes.length === 0) {
     ui.ruleList.replaceChildren(
       el('div', { className: 'empty' }, el('p', { text: tr('rules.empty') }), el('p', { className: 'example', text: tr('rules.example') }))
     );
-  } else if (visible.length === 0) {
+  } else if (state.filter && visible.length === 0) {
     ui.ruleList.replaceChildren(el('p', { className: 'empty', text: tr('rules.noneUse') }));
   } else {
-    ui.ruleList.replaceChildren(...visible.map(({ rule, index }) => renderRule(rule, index)));
+    // One section per route, then the rules without route. While filtering, sections
+    // without matching rules are left out.
+    const sections = state.routes.map((route) => renderRouteGroup(route, visible.filter(({ rule }) => rule.route === route.id)));
+    const loose = visible.filter(({ rule }) => !rule.route || !state.routes.some((r) => r.id === rule.route));
+    if (loose.length || !state.filter) sections.push(renderLooseGroup(loose));
+    ui.ruleList.replaceChildren(...sections.filter(Boolean));
   }
 
   const filterTile = state.filter && tileById(state.filter);
@@ -380,6 +501,10 @@ const renderRules = () => {
 const logText = (e) => {
   if (e.kind === 'started') return tr('log.started');
   if (e.kind === 'missing') return tr('log.missing');
+  if (e.kind === 'loco') {
+    const block = e.block ? blockLabel(e.block) : '?';
+    return e.sent ? tr('log.loco', { loco: e.loco, block, speed: e.speed }) : tr('log.locoNotSet', { block, reason: e.reason });
+  }
   if (e.kind === 'action') {
     const what = `${labelOf(e.type)} → ${stateLabel(e.type, e.state)}`;
     return e.sent ? what : tr('log.notSent', { what, reason: e.reason });
@@ -444,18 +569,28 @@ const applyField = (rule, field, input) => {
     rule.enabled = input.checked;
     return true;
   }
+  if (field === 'route') {
+    rule.route = input.value || null;
+    return true;
+  }
   const item = parts[0] === 'trigger' ? rule.trigger : rule[parts[0]][Number(parts[1])];
   const key = parts[parts.length - 1];
   if (key === 'delay') {
     item.delay = Math.max(0, Math.min(3600, Math.round((Number(input.value) || 0) * 10) / 10));
     return true;
   }
+  if (key === 'speed') {
+    item.speed = Math.max(0, Math.min(100, Math.round(Number(input.value) || 0)));
+    return true;
+  }
   item[key] = input.value || null;
-  if (key === 'device' && parts[0] !== 'trigger') {
-    // New element: keep the state if it still applies, otherwise take its first state.
+  if (key === 'device') {
+    // New element: keep the state if it still applies, otherwise take its first state
+    // (a contact as trigger: 'on').
     const tile = tileById(item.device);
-    const states = tile ? statesFor(parts[0] === 'actions' ? 'action' : 'condition', tile.type) : [];
-    if (!states.includes(item.state)) item.state = states[0] || '';
+    const role = parts[0] === 'trigger' ? 'trigger' : parts[0] === 'actions' ? 'action' : 'condition';
+    const states = !tile ? [] : role === 'trigger' ? triggerStates(tile.type) : statesFor(role, tile.type);
+    if (!states.includes(item.state)) item.state = role === 'trigger' && tile && sensorStatesOf(tile.type) ? 'on' : states[0] || '';
   }
   return true;
 };
@@ -493,6 +628,8 @@ ui.ruleList.addEventListener('click', (event) => {
     const last = rule.actions[rule.actions.length - 1];
     const device = (last && tileById(last.device)) || firstDevice('action');
     rule.actions.push({ device: device ? device.id : null, state: device ? actionStates(device.type)[0] : '', delay: 0 });
+  } else if (button.dataset.action === 'add-loco-action') {
+    rule.actions.push({ type: 'loco', block: state.blocks.length ? state.blocks[0].id : null, speed: 50, delay: 0 });
   } else if (button.dataset.action === 'duplicate') {
     const copy = JSON.parse(JSON.stringify(rule));
     copy.id = newId('r');
@@ -520,8 +657,9 @@ ui.ruleList.addEventListener('click', (event) => {
   scheduleSave();
 });
 
-ui.addRule.addEventListener('click', () => {
+const addRule = (route = null) => {
   const rule = newRule();
+  rule.route = route;
   // A new rule made while filtering by a sensor starts from that sensor.
   const filterTile = state.filter && tileById(state.filter);
   if (filterTile && ruleRoles(filterTile.type).trigger) rule.trigger.device = filterTile.id;
@@ -536,6 +674,79 @@ ui.addRule.addEventListener('click', () => {
   if (card) {
     card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     card.querySelector('.rule-name').select();
+  }
+};
+ui.addRule.addEventListener('click', () => addRule());
+
+/* ---------- Routes (rule groups) ---------- */
+
+const routeOf = (node) => {
+  const section = node.closest('[data-route]');
+  return section ? state.routes.find((r) => r.id === section.dataset.route) : null;
+};
+
+ui.addRoute.addEventListener('click', () => {
+  const route = { id: newId('g'), name: tr('rg.defaultName', { n: state.routes.length + 1 }) };
+  state.routes.push(route);
+  renderRules();
+  scheduleSave();
+  const section = ui.ruleList.querySelector(`[data-route="${CSS.escape(route.id)}"]`);
+  if (section) {
+    section.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    section.querySelector('.route-group-name').select();
+  }
+});
+
+ui.ruleList.addEventListener('input', (event) => {
+  if (event.target.dataset.routeField !== 'name') return;
+  const route = routeOf(event.target);
+  if (!route) return;
+  route.name = event.target.value.slice(0, 40);
+  scheduleSave();
+});
+
+// The route switch turns all of its rules on or off.
+ui.ruleList.addEventListener('change', (event) => {
+  if (event.target.dataset.routeField !== 'active') return;
+  const route = routeOf(event.target);
+  if (!route) return;
+  const rules = state.rules.filter((r) => r.route === route.id);
+  rules.forEach((r) => {
+    r.enabled = event.target.checked;
+  });
+  setStatus(tr(event.target.checked ? 'rg.activated' : 'rg.deactivated', { name: route.name, n: rules.length }), 'ok');
+  renderRules();
+  renderDevices();
+  scheduleSave();
+});
+
+ui.ruleList.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-route-action]');
+  const route = button && routeOf(button);
+  if (!route) return;
+  if (button.dataset.routeAction === 'add-rule') {
+    addRule(route.id);
+    return;
+  }
+  if (button.dataset.routeAction === 'delete') {
+    if (button.dataset.confirm !== 'yes') {
+      // Second click deletes; its rules stay, without route.
+      button.dataset.confirm = 'yes';
+      button.textContent = tr('rules.deleteConfirm');
+      setTimeout(() => {
+        if (!button.isConnected) return;
+        delete button.dataset.confirm;
+        button.textContent = tr('rg.delete');
+      }, 3000);
+      return;
+    }
+    state.routes = state.routes.filter((r) => r.id !== route.id);
+    state.rules.forEach((r) => {
+      if (r.route === route.id) r.route = null;
+    });
+    setStatus(tr('rg.deleted', { name: route.name }));
+    renderRules();
+    scheduleSave();
   }
 });
 
@@ -599,8 +810,24 @@ const pollLive = async () => {
   }
 };
 
+// Blocks for loco actions (numbers B1, B2, …).
+const loadBlocks = async () => {
+  try {
+    const response = await fetch('/api/blocklist');
+    const data = await response.json();
+    if (!response.ok) return;
+    const blocks = data.blocks.map((b) => ({ id: b.id, number: b.number }));
+    if (JSON.stringify(blocks) === JSON.stringify(state.blocks)) return;
+    state.blocks = blocks;
+    renderRules();
+  } catch (_error) {
+    // Try again with the next layout reload.
+  }
+};
+
 // The layout can change in the other window: reload it, re-render only when it did.
 const loadLayout = async () => {
+  loadBlocks();
   try {
     const response = await fetch('/api/layout');
     const data = await response.json();
@@ -625,9 +852,11 @@ const init = async () => {
     if (!rulesResponse.ok) throw new Error(rules.error || 'Rules could not be loaded.');
     state.tiles = layout.tiles;
     state.rules = rules.rules;
+    state.routes = rules.routes || [];
   } catch (error) {
     setStatus(error.message, 'error');
   }
+  await loadBlocks();
   renderAll();
   await pollLive();
   setInterval(() => {

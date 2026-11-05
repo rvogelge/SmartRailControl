@@ -1,6 +1,6 @@
 /* global I18n */
-// Blocks page: the blocks of the layout (found from block-start contacts, numbered),
-// and Fahrstraßen: sequences of blocks for automated operation, with start / stop.
+// Blocks page: the blocks of the layout (found from block-start contacts, numbered).
+// Hovering a block highlights its tracks in the layout window.
 (() => {
 const tr = (key, vars) => I18n.t(key, vars);
 const $ = (id) => document.getElementById(id);
@@ -9,18 +9,11 @@ const POLL_MS = 1000;
 
 const ui = {
   blockRows: $('blockRows'),
-  routeList: $('routeList'),
-  addRoute: $('addRoute'),
-  status: $('statusLine'),
-  saveState: $('saveState')
+  status: $('statusLine')
 };
 
 const state = {
-  blocks: [],
-  routes: [], // edited here, saved to the server
-  runs: {},
-  routesKey: null, // routes as last rendered
-  confirmDelete: null
+  blocks: []
 };
 
 const setStatus = (text, kind = '') => {
@@ -36,14 +29,12 @@ const api = async (url, options = {}) => {
   return data;
 };
 
-const newId = () => `r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-
-// Hovering a block (or a Fahrstraße) highlights its tracks in the layout window.
+// Hovering a block highlights its tracks in the layout window.
 const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('smartrailcontrol') : null;
 const highlight = (blocks) => {
   if (channel) channel.postMessage({ type: 'highlightBlocks', blocks });
 };
-// The innermost hovered element wins (a chip inside a step inside a Fahrstraße).
+// The innermost hovered element with blocks wins.
 const highlightOn = (node, blocks) => {
   node.dataset.highlight = JSON.stringify(blocks);
 };
@@ -99,292 +90,22 @@ const renderBlocks = () => {
   );
 };
 
-/* ---------- Routes: editing ---------- */
-
-let saveTimer = null;
-const saveRoutes = (message) => {
-  clearTimeout(saveTimer);
-  ui.saveState.textContent = tr('common.saving');
-  saveTimer = setTimeout(async () => {
-    try {
-      const data = await api('/api/routes', { method: 'PUT', body: JSON.stringify({ routes: state.routes }) });
-      state.routes = data.routes;
-      ui.saveState.textContent = tr('common.saved');
-      if (message) setStatus(message, 'ok');
-      saveTimer = null;
-      await load(true);
-    } catch (error) {
-      saveTimer = null;
-      ui.saveState.textContent = '';
-      setStatus(tr('routes.saveFailed', { msg: error.message }), 'error');
-    }
-  }, 300);
-};
-
-// The page reloads the routes every second, so a rendered control may hold an older copy
-// of its route: always change the current one (looked up by id). `changes` is an object
-// or a function of the current route.
-const change = (route, changes, message) => {
-  const current = state.routes.find((r) => r.id === route.id);
-  if (!current) return;
-  Object.assign(current, typeof changes === 'function' ? changes(current) : changes);
-  renderRoutes(true);
-  saveRoutes(message);
-};
-
-const runText = (run) => {
-  if (!run) return tr('routes.notRunning');
-  const vars = { loco: run.loco, from: label(run.current), to: label(run.next) };
-  return tr(`routes.code.${run.code}`, vars);
-};
-
-// Locomotives that can start this route: the ones in one of its blocks.
-const locosInRoute = (route) =>
-  [...new Set(route.steps.flat().map((id) => blockById(id)).filter((b) => b && b.loco).map((b) => b.loco))];
-
-const renderRunControls = (route, box) => {
-  const run = state.runs[route.id];
-  box.replaceChildren();
-  const status = el('span', `route-status ${run ? run.code : 'idle'}`, runText(run));
-  if (run && !run.ended) {
-    const stop = el('button', 'ghost small danger-text', tr('routes.stop'));
-    stop.type = 'button';
-    stop.addEventListener('click', () => stopRun(route));
-    box.append(stop, status);
-    return;
-  }
-  const locos = locosInRoute(route);
-  const select = el('select', 'route-loco');
-  select.setAttribute('aria-label', tr('routes.loco'));
-  if (locos.length === 0) select.append(el('option', '', tr('routes.noLoco')));
-  locos.forEach((name) => {
-    const option = el('option', '', name);
-    option.value = name;
-    select.append(option);
-  });
-  select.disabled = locos.length === 0;
-  const start = el('button', 'primary small', tr('routes.start'));
-  start.type = 'button';
-  start.disabled = locos.length === 0 || route.steps.length < 2;
-  start.addEventListener('click', () => startRun(route, select.value));
-  box.append(select, start);
-  if (run) {
-    const clear = el('button', 'ghost small', tr('routes.clear'));
-    clear.type = 'button';
-    clear.addEventListener('click', () => stopRun(route));
-    box.append(clear);
-  }
-  box.append(status);
-};
-
-const renderRoute = (route) => {
-  const card = el('div', 'route');
-  card.dataset.id = route.id;
-  highlightOn(card, route.steps.flat());
-
-  // Head: name, loop, delete
-  const head = el('div', 'route-head');
-  const name = el('input', 'route-name');
-  name.type = 'text';
-  name.maxLength = 40;
-  name.value = route.name;
-  name.setAttribute('aria-label', tr('routes.name'));
-  name.addEventListener('change', () =>
-    change(route, (r) => ({ name: name.value.trim() || r.name }), tr('routes.saved', { name: name.value.trim() || route.name }))
-  );
-  name.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') name.blur();
-  });
-  const loop = el('label', 'route-loop');
-  const loopBox = el('input');
-  loopBox.type = 'checkbox';
-  loopBox.checked = route.loop;
-  loopBox.addEventListener('change', () => change(route, { loop: loopBox.checked }, tr('routes.saved', { name: route.name })));
-  loop.append(loopBox, el('span', '', tr('routes.loop')));
-  const del = el('button', 'ghost small danger-text', state.confirmDelete === route.id ? tr('ctl.deleteConfirm') : tr('routes.delete'));
-  del.type = 'button';
-  del.addEventListener('click', () => deleteRoute(route));
-  head.append(name, loop, del);
-
-  // Sequence of steps; a step holds one block or several parallel blocks.
-  const seq = el('div', 'route-seq');
-  const blockSelect = (className, placeholderText, exclude, onPick) => {
-    const select = el('select', className);
-    select.setAttribute('aria-label', placeholderText);
-    const placeholder = el('option', '', placeholderText);
-    placeholder.value = '';
-    select.append(placeholder);
-    state.blocks.filter((b) => !exclude.includes(b.id)).forEach((b) => {
-      const option = el('option', '', `B${b.number}`);
-      option.value = b.id;
-      select.append(option);
-    });
-    select.addEventListener('change', () => {
-      if (select.value) onPick(select.value);
-    });
-    return select;
-  };
-  route.steps.forEach((step, i) => {
-    if (i > 0) seq.append(el('span', 'route-arrow', '→'));
-    const group = el('span', `route-step${step.length > 1 ? ' parallel' : ''}`);
-    highlightOn(group, step);
-    const left = el('button', 'chip-btn', '◀');
-    left.type = 'button';
-    left.title = tr('routes.moveLeft');
-    left.disabled = i === 0;
-    left.addEventListener('click', () =>
-      change(route, (r) => {
-        const steps = [...r.steps];
-        [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]];
-        return { steps };
-      })
-    );
-    group.append(left);
-    step.forEach((id, j) => {
-      if (j > 0) group.append(el('span', 'route-or', tr('routes.or')));
-      const chip = el('span', `route-chip${blockById(id) ? '' : ' missing'}`);
-      highlightOn(chip, [id]);
-      const remove = el('button', 'chip-btn', '×');
-      remove.type = 'button';
-      remove.title = tr('routes.removeBlock');
-      remove.addEventListener('click', () =>
-        change(route, (r) => ({
-          steps: r.steps.map((s2, k) => (k === i ? s2.filter((b) => b !== id) : s2)).filter((s2) => s2.length > 0)
-        }))
-      );
-      chip.append(el('strong', '', label(id)), remove);
-      group.append(chip);
-    });
-    group.append(
-      blockSelect('route-add parallel-add', tr('routes.addParallel'), step, (id) =>
-        change(route, (r) => ({ steps: r.steps.map((s2, k) => (k === i ? [...s2, id] : s2)) }), tr('routes.parallelAdded', { block: label(id) }))
-      )
-    );
-    const right = el('button', 'chip-btn', '▶');
-    right.type = 'button';
-    right.title = tr('routes.moveRight');
-    right.disabled = i === route.steps.length - 1;
-    right.addEventListener('click', () =>
-      change(route, (r) => {
-        const steps = [...r.steps];
-        [steps[i + 1], steps[i]] = [steps[i], steps[i + 1]];
-        return { steps };
-      })
-    );
-    group.append(right);
-    seq.append(group);
-  });
-  if (route.loop && route.steps.length > 1) seq.append(el('span', 'route-arrow', `→ ${route.steps[0].map(label).join(' / ')} ↺`));
-  seq.append(
-    blockSelect('route-add', tr('routes.addBlock'), [], (id) =>
-      change(route, (r) => ({ steps: [...r.steps, [id]] }), tr('routes.blockAdded', { block: label(id) }))
-    )
-  );
-
-  // Track connections between consecutive blocks
-  const checks = el('div', 'route-checks');
-  const links = route.links || [];
-  const broken = links.filter((l) => !l.connected);
-  if (route.steps.length < 2) checks.append(el('span', 'route-check warn', tr('routes.needTwo')));
-  else if (broken.length) broken.forEach((l) => checks.append(el('span', 'route-check warn', tr('routes.noConnection', { from: label(l.from), to: l.to.map(label).join(' / ') }))));
-  else if (links.length) checks.append(el('span', 'route-check ok', tr('routes.connected')));
-
-  const run = el('div', 'route-run');
-  renderRunControls(route, run);
-
-  card.append(head, seq, checks, run);
-  return card;
-};
-
-// Rebuilt only when the routes changed (not while typing), run controls every poll.
-const renderRoutes = (force = false) => {
-  const key = JSON.stringify([state.routes, state.blocks.map((b) => [b.id, b.number])]);
-  const editing = ui.routeList.contains(document.activeElement) && document.activeElement.matches('input[type="text"]');
-  if (force || (key !== state.routesKey && !editing)) {
-    state.routesKey = key;
-    ui.routeList.replaceChildren(
-      ...(state.routes.length ? state.routes.map(renderRoute) : [el('p', 'hint block-empty', tr('routes.none'))])
-    );
-    return;
-  }
-  ui.routeList.querySelectorAll('.route').forEach((card) => {
-    const route = state.routes.find((r) => r.id === card.dataset.id);
-    const box = card.querySelector('.route-run');
-    if (route && box && !box.contains(document.activeElement)) renderRunControls(route, box);
-  });
-};
-
-let confirmTimer = null;
-const deleteRoute = (route) => {
-  if (state.confirmDelete !== route.id) {
-    state.confirmDelete = route.id;
-    clearTimeout(confirmTimer);
-    confirmTimer = setTimeout(() => {
-      state.confirmDelete = null;
-      renderRoutes(true);
-    }, 3000);
-    renderRoutes(true);
-    return;
-  }
-  state.confirmDelete = null;
-  state.routes = state.routes.filter((r) => r.id !== route.id);
-  renderRoutes(true);
-  saveRoutes(tr('routes.deleted', { name: route.name }));
-};
-
-ui.addRoute.addEventListener('click', () => {
-  const route = { id: newId(), name: tr('routes.newName', { n: state.routes.length + 1 }), steps: [], loop: false };
-  state.routes.push(route);
-  renderRoutes(true);
-  saveRoutes(tr('routes.added', { name: route.name }));
-});
-
-/* ---------- Routes: running ---------- */
-
-const startRun = async (route, loco) => {
-  try {
-    const data = await api(`/api/routes/${encodeURIComponent(route.id)}/start`, { method: 'POST', body: JSON.stringify({ loco }) });
-    state.runs = data.runs;
-    renderRoutes();
-    setStatus(tr('routes.started', { name: route.name, loco }), 'ok');
-  } catch (error) {
-    setStatus(error.message, 'error');
-  }
-};
-
-const stopRun = async (route) => {
-  try {
-    const data = await api(`/api/routes/${encodeURIComponent(route.id)}/stop`, { method: 'POST' });
-    state.runs = data.runs;
-    renderRoutes();
-    setStatus(tr('routes.stopped', { name: route.name }), 'ok');
-  } catch (error) {
-    setStatus(error.message, 'error');
-  }
-};
-
 /* ---------- Loading ---------- */
 
-const load = async (takeRoutes = false) => {
+const load = async () => {
   try {
     const data = await api('/api/blocklist');
+    if (JSON.stringify(data.blocks) === JSON.stringify(state.blocks)) return;
     state.blocks = data.blocks;
-    state.runs = data.runs;
-    // Routes from the server (with their connection checks), unless an edit is being saved.
-    if (takeRoutes || !saveTimer) state.routes = data.routes;
     renderBlocks();
-    renderRoutes();
   } catch (error) {
     setStatus(error.message, 'error');
   }
 };
 
-window.addEventListener('languagechange', () => {
-  renderBlocks();
-  renderRoutes(true);
-});
+window.addEventListener('languagechange', renderBlocks);
 
-load(true);
+load();
 setInterval(() => {
   if (document.visibilityState === 'visible') load();
 }, POLL_MS);

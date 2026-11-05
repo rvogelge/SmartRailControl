@@ -9,7 +9,6 @@ const TrackCatalog = require('./public/trackCatalog');
 const RuleEngine = require('./ruleEngine');
 const FeedbackPoller = require('./feedbackPoller');
 const BlockTracker = require('./blockTracker');
-const RouteRunner = require('./routeRunner');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -151,13 +150,8 @@ app.put('/api/controllers', (req, res) => {
     const after = new Map(result.controllers.map((c) => [c.id, c]));
     before.forEach((old) => {
       const now = after.get(old.id);
-      if (!now) {
-        blocks.renameLoco(old.name, null);
-        routeRunner.renameLoco(old.name, null);
-      } else if (now.name !== old.name) {
-        blocks.renameLoco(old.name, now.name);
-        routeRunner.renameLoco(old.name, now.name);
-      }
+      if (!now) blocks.renameLoco(old.name, null);
+      else if (now.name !== old.name) blocks.renameLoco(old.name, now.name);
     });
     return res.json(result);
   } catch (error) {
@@ -192,7 +186,6 @@ app.put('/api/layout', (req, res) => {
     const layout = settingsStore.setLayout(req.body || {});
     syncContactsFromFeedback();
     blocks.prune();
-    routeRunner.evaluate();
     return res.json(layout);
   } catch (error) {
     return res.status(400).json({ error: error.message });
@@ -239,10 +232,32 @@ const operateTile = async (tile, state) => {
   }
 };
 
+// Rule action: speed (% of its max speed) of the locomotive that occupies a block.
+// Direction and light stay; 0 % stops it.
+const setBlockLocoSpeed = async (blockId, percent) => {
+  const occupant = blocks.getLive()[blockId];
+  if (!occupant) return { sent: false, error: 'the block is free' };
+  if (!occupant.loco) return { sent: false, error: 'unknown train in the block' };
+  const controller = settingsStore.getControllers().controllers.find((c) => c.name === occupant.loco);
+  if (!controller) return { sent: false, error: `${occupant.loco} is not in the locomotive list`, loco: occupant.loco };
+  const speed = Math.round((Math.max(0, Math.min(100, percent)) / 100) * controller.maxSpeed);
+  const result = serialService.sendLocomotiveCommand({
+    decoderId: controller.decoderId,
+    speed,
+    direction: controller.direction,
+    stop: speed === 0,
+    light: controller.light
+  });
+  locoSpeeds.set(controller.decoderId, speed);
+  settingsStore.updateControllerState(controller.id, { speed });
+  return { sent: Boolean(result.success), error: result.error, loco: controller.name };
+};
+
 const ruleEngine = new RuleEngine({
   getRules: () => settingsStore.getRules(),
   getTile: (id) => settingsStore.getTile(id),
-  operate: operateTile
+  operate: operateTile,
+  setLocoSpeed: setBlockLocoSpeed
 });
 
 /* ---------- Block signalling ---------- */
@@ -266,7 +281,6 @@ const blocks = new BlockTracker({
 // A contact track switched on (s88 or pressed by hand): occupy its block, if it starts one.
 const blockContactOn = (tileId) => {
   const result = blocks.contactOn(tileId);
-  if (result) routeRunner.evaluate();
   if (result) {
     const freed = result.freed.length ? `, freed ${result.freed.length} block(s) behind` : '';
     console.log(`[blocks] block ${result.block} occupied${result.loco ? ` by ${result.loco}` : ''}${freed}`);
@@ -280,9 +294,7 @@ const blockContactOn = (tileId) => {
 app.post('/api/blocks', (req, res) => {
   const { id, occupied, loco } = req.body || {};
   try {
-    const live = blocks.set(String(id || ''), { occupied: Boolean(occupied), loco });
-    routeRunner.evaluate();
-    return res.json({ ok: true, blocks: live });
+    return res.json({ ok: true, blocks: blocks.set(String(id || ''), { occupied: Boolean(occupied), loco }) });
   } catch (error) {
     if (error.code === 'locoInBlock') {
       return res.status(409).json({ error: error.message, code: error.code, block: error.block, loco: error.loco });
@@ -308,37 +320,7 @@ const blockNumbers = () => {
   return numbers;
 };
 
-/* ---------- Fahrstraßen (routes) and automated operation ---------- */
-
-// Stops a locomotive (speed 0, direction and light kept) and saves that for the throttle.
-const stopLoco = (name) => {
-  const controller = settingsStore.getControllers().controllers.find((c) => c.name === name);
-  if (!controller) return;
-  try {
-    serialService.sendLocomotiveCommand({ decoderId: controller.decoderId, speed: 0, direction: controller.direction, stop: true, light: controller.light });
-  } catch (error) {
-    console.error(`[routes] could not stop ${name}: ${error.message}`);
-  }
-  locoSpeeds.set(controller.decoderId, 0);
-  settingsStore.updateControllerState(controller.id, { speed: 0 });
-};
-
-const routeRunner = new RouteRunner({
-  tracker: blocks,
-  getTiles: () => settingsStore.getLayout().tiles,
-  getRoutes: () => settingsStore.getRoutes(),
-  setTurnout: async (id, state) => {
-    const tile = settingsStore.getTile(id);
-    if (!tile) return;
-    const result = await operateTile(tile, state);
-    console.log(`[routes] turnout ${id} → ${state}${result.sent ? '' : ` (not sent: ${result.error})`}`);
-  },
-  stopLoco,
-  log: (text) => console.log(text)
-});
-
-// Block list page: blocks with number, start contact, occupancy; routes with their
-// connections and runs.
+// Block list page: blocks with number, start contact, occupancy.
 app.get('/api/blocklist', (_req, res) => {
   const tiles = settingsStore.getLayout().tiles;
   const byId = new Map(tiles.map((t) => [t.id, t]));
@@ -362,45 +344,7 @@ app.get('/api/blocklist', (_req, res) => {
       };
     })
     .sort((a, b) => a.number - b.number);
-  // Every block of a step has to reach at least one block of the next step.
-  const routes = settingsStore.getRoutes().map((route) => {
-    const { steps } = route;
-    const pairs = steps.slice(1).map((to, i) => [steps[i], to]);
-    if (route.loop && steps.length > 1) pairs.push([steps[steps.length - 1], steps[0]]);
-    const links = pairs.flatMap(([fromStep, toStep]) =>
-      fromStep.map((from) => ({ from, to: toStep, connected: toStep.some((to) => to !== from && TrackCatalog.findPath(tiles, from, to)) }))
-    );
-    return { ...route, links };
-  });
-  res.json({ blocks: list, routes, runs: routeRunner.getLive() });
-});
-
-app.put('/api/routes', (req, res) => {
-  try {
-    const routes = settingsStore.setRoutes((req.body || {}).routes);
-    // Runs of routes that are gone end.
-    Object.keys(routeRunner.getLive()).forEach((id) => {
-      if (!routes.some((r) => r.id === id)) routeRunner.stop(id);
-    });
-    routeRunner.evaluate();
-    return res.json({ routes });
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
-});
-
-app.post('/api/routes/:id/start', async (req, res) => {
-  try {
-    await routeRunner.start(req.params.id, String((req.body || {}).loco || ''));
-    return res.json({ ok: true, runs: routeRunner.getLive() });
-  } catch (error) {
-    return res.status(400).json({ error: error.message, code: error.code });
-  }
-});
-
-app.post('/api/routes/:id/stop', (req, res) => {
-  routeRunner.stop(req.params.id);
-  return res.json({ ok: true, runs: routeRunner.getLive() });
+  res.json({ blocks: list });
 });
 
 /* ---------- s88 feedback ---------- */
@@ -466,7 +410,8 @@ if (!['0', 'false', 'no', 'off'].includes(String(process.env.S88_FEEDBACK || '')
   feedback.start();
 }
 
-// Run mode: operate a layout element. The browser sends only the element id and the new state.
+// Run mode: operate a layout element by hand (click). The browser sends only the element
+// id and the new state. Rules triggered by this element in that state run.
 app.post('/api/layout/operate', async (req, res) => {
   const { id, state } = req.body || {};
   const tile = settingsStore.getTile(String(id || ''));
@@ -474,7 +419,9 @@ app.post('/api/layout/operate', async (req, res) => {
     return res.status(404).json({ error: 'Unknown layout element.' });
   }
   try {
-    return res.json(await operateTile(tile, state));
+    const result = await operateTile(tile, state);
+    const { fired } = TrackCatalog.statesOf(tile.type) ? ruleEngine.elementSwitched(tile.id, state) : { fired: [] };
+    return res.json({ ...result, fired });
   } catch (error) {
     return res.status(error.status || 500).json({ error: error.message });
   }
@@ -522,18 +469,19 @@ app.get('/api/live', (_req, res) => {
     feedback: feedback.getStatus(),
     blocks: blocks.getLive(),
     blockNumbers: blockNumbers(),
-    runs: routeRunner.getLive(),
     s88: { events: s88Events, contactsOn: [...contactsOn].sort((a, b) => a - b) }
   });
 });
 
 app.get('/api/rules', (_req, res) => {
-  res.json({ rules: settingsStore.getRules() });
+  res.json({ rules: settingsStore.getRules(), routes: settingsStore.getRoutes() });
 });
 
+// Rules window: the rules and the routes (rule groups) they belong to, saved together.
 app.put('/api/rules', (req, res) => {
   try {
-    return res.json({ rules: settingsStore.setRules((req.body || {}).rules) });
+    const { rules, routes } = req.body || {};
+    return res.json({ rules: settingsStore.setRules(rules, routes), routes: settingsStore.getRoutes() });
   } catch (error) {
     return res.status(400).json({ error: error.message });
   }

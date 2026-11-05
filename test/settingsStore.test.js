@@ -248,13 +248,20 @@ test('locomotives: max speed caps the speed; driving state and selection are sav
   assert.equal(new SettingsStore(file).getControllers().activeControllerId, 'b');
 });
 
-test('routes: steps of parallel blocks; old saves with blocks become one block per step', () => {
+test('routes group rules; a rule of an unknown or deleted route keeps working without route', () => {
   const store = new SettingsStore(tmpFile());
-  const [old, parallel] = store.setRoutes([
-    { id: 'r1', name: 'Old', blocks: ['a', 'b'] },
-    { id: 'r2', name: 'Station', steps: [['a'], ['p1', 'p2', 'p1'], []], loop: true }
-  ]);
-  assert.deepEqual(old.steps, [['a'], ['b']]);
-  assert.deepEqual(parallel.steps, [['a'], ['p1', 'p2']]);
-  assert.equal(parallel.loop, true);
+  const rule = (id, route) => ({ id, name: id, route, trigger: { device: null, state: 'on' }, conditions: [], actions: [] });
+  store.setRules([rule('a', 'r1'), rule('b', 'nope'), rule('c', null)], [{ id: 'r1', name: 'Bahnhof' }, { name: '' }]);
+  const routes = store.getRoutes();
+  assert.equal(routes.length, 2);
+  assert.deepEqual(routes[0], { id: 'r1', name: 'Bahnhof' });
+  assert.equal(routes[1].name, 'Route 2');
+  assert.deepEqual(store.getRules().map((r) => r.route), ['r1', null, null]);
+
+  // Old saves with block steps keep id and name.
+  store.setRoutes([{ id: 'r1', name: 'Bahnhof', steps: [['x']], loop: true }]);
+  assert.deepEqual(store.getRoutes(), [{ id: 'r1', name: 'Bahnhof' }]);
+  // Deleting the route ungroups its rules.
+  store.setRoutes([]);
+  assert.deepEqual(store.getRules().map((r) => r.route), [null, null, null]);
 });

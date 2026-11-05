@@ -99,7 +99,10 @@ test('rejects unknown sensors', () => {
 test('sanitizeRules checks kinds and states of existing elements', () => {
   const ok = SettingsStore.sanitizeRules([rule({ actions: [{ device: 't1', state: 'diverging', delay: 9999 }] })], tiles);
   assert.equal(ok[0].actions[0].delay, 3600);
-  assert.throws(() => SettingsStore.sanitizeRules([rule({ trigger: { device: 't1', state: 'on' } })], tiles), /cannot be used as a trigger/);
+  // Turnouts and signals can trigger (switched by hand), with their own states; uncouplers cannot.
+  assert.equal(SettingsStore.sanitizeRules([rule({ trigger: { device: 't1', state: 'diverging' } })], tiles)[0].trigger.state, 'diverging');
+  assert.throws(() => SettingsStore.sanitizeRules([rule({ trigger: { device: 't1', state: 'on' } })], tiles), /invalid state/);
+  assert.throws(() => SettingsStore.sanitizeRules([rule({ trigger: { device: 'u1', state: 'trigger' } })], tiles), /cannot be used as a trigger/);
   assert.throws(() => SettingsStore.sanitizeRules([rule({ actions: [{ device: 'c2', state: 'on' }] })], tiles), /cannot be used as an action/);
   assert.throws(() => SettingsStore.sanitizeRules([rule({ actions: [{ device: 't1', state: 'left' }] })], tiles), /invalid state/);
   // References to removed elements are kept.
@@ -132,4 +135,44 @@ test('a real contact report cancels a running press', async () => {
   engine.setSensor('c1', true); // the s88 module says: occupied
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(engine.getLive().sensors, { c1: true });
+});
+
+test('a turnout or signal switched by hand runs the rules it triggers', async () => {
+  const byTurnout = rule({ id: 'sw', trigger: { device: 't1', state: 'diverging' }, actions: [{ device: 's1', state: 'go', delay: 0 }] });
+  const { engine, calls } = setup([byTurnout, rule()]);
+  const other = engine.elementSwitched('t1', 'straight');
+  await other.done;
+  assert.deepEqual(other.fired, []);
+  const result = engine.elementSwitched('t1', 'diverging');
+  await result.done;
+  assert.deepEqual(result.fired, ['sw']);
+  assert.deepEqual(calls, [['s1', 'go']]);
+});
+
+test('loco action: sets the speed of the locomotive in a block, logged with the result', async () => {
+  const speeds = [];
+  const engine = new RuleEngine({
+    getRules: () => [],
+    getTile: () => null,
+    operate: async () => ({ sent: true }),
+    setLocoSpeed: async (block, percent) => {
+      speeds.push([block, percent]);
+      return block === 'b1' ? { sent: true, loco: 'V200' } : { sent: false, error: 'the block is free' };
+    },
+    wait: async () => {}
+  });
+  const r = rule({ trigger: { device: 'c1', state: 'on' }, actions: [{ type: 'loco', block: 'b1', speed: 40, delay: 0 }, { type: 'loco', block: 'b2', speed: 0, delay: 0 }] });
+  await engine.run(r);
+  assert.deepEqual(speeds, [['b1', 40], ['b2', 0]]);
+  const [free, set] = engine.getLive().log; // newest first
+  assert.equal(set.kind, 'loco');
+  assert.equal(set.loco, 'V200');
+  assert.equal(set.sent, true);
+  assert.equal(free.sent, false);
+  assert.equal(free.reason, 'the block is free');
+});
+
+test('sanitizeRules keeps loco actions with block and speed 0..100', () => {
+  const [r] = SettingsStore.sanitizeRules([rule({ actions: [{ type: 'loco', block: 'b1', speed: 250, delay: 2 }, { type: 'loco', block: '../x', speed: -5 }] })], tiles);
+  assert.deepEqual(r.actions, [{ type: 'loco', block: 'b1', speed: 100, delay: 2 }, { type: 'loco', block: null, speed: 0, delay: 0 }]);
 });

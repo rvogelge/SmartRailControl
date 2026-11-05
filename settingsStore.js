@@ -132,7 +132,8 @@ const ID_PATTERN = /^[\w-]{1,64}$/;
 // Devices are referenced by tile id. A rule may point at an element that was removed
 // from the layout later; it is kept (the editor flags it, the engine skips it), but a
 // device that exists must have the right kind and a valid state.
-const sanitizeRules = (input, tiles = []) => {
+// routeIds (optional): known routes; a rule with another route gets none.
+const sanitizeRules = (input, tiles = [], routeIds = null) => {
   const list = Array.isArray(input) ? input : [];
   if (list.length > MAX_RULES) throw new Error(`At most ${MAX_RULES} rules are supported.`);
   const byId = new Map(tiles.map((t) => [t.id, t]));
@@ -162,17 +163,26 @@ const sanitizeRules = (input, tiles = []) => {
     ids.add(id);
     const name = String(rule.name || '').trim().slice(0, 60) || `Rule ${index + 1}`;
 
-    const trigger = ref(rule.trigger, 'a trigger', 'trigger', TrackCatalog.conditionStates, name);
-    if (!['on', 'off'].includes(trigger.state)) trigger.state = 'on';
+    const trigger = ref(rule.trigger, 'a trigger', 'trigger', TrackCatalog.triggerStates, name);
+    if (!trigger.state) trigger.state = 'on';
+
+    const route = typeof rule.route === 'string' && ID_PATTERN.test(rule.route) && (!routeIds || routeIds.has(rule.route)) ? rule.route : null;
 
     return {
       id,
       name,
       enabled: rule.enabled !== false,
+      route,
       trigger,
       conditions: items(rule.conditions, (c) => ref(c, 'a condition', 'condition', TrackCatalog.conditionStates, name)),
       actions: items(rule.actions, (a) => {
         const delay = Math.round(Math.max(0, Math.min(MAX_DELAY_S, Number(a && a.delay) || 0)) * 10) / 10;
+        // Loco action: set the speed (% of its max speed) of the locomotive in a block.
+        if (a && a.type === 'loco') {
+          const block = typeof a.block === 'string' && ID_PATTERN.test(a.block) ? a.block : null;
+          const speed = Math.max(0, Math.min(100, Math.round(Number(a.speed) || 0)));
+          return { type: 'loco', block, speed, delay };
+        }
         return { ...ref(a, 'an action', 'action', TrackCatalog.actionStates, name), delay };
       })
     };
@@ -191,30 +201,19 @@ const createController = (overrides = {}) => ({
   ...overrides
 });
 
-// Fahrstraßen (routes) for automated operation: a sequence of steps, each step one block
-// or several parallel blocks (e.g. station tracks). Older saves with `blocks: [ids]`
-// become one block per step.
+// Routes (Fahrstraßen): named groups of logic rules that are switched on and off
+// together. A rule belongs to one route at most (rule.route). Older saves (with block
+// steps) keep their id and name.
 const MAX_ROUTES = 50;
-const BLOCK_ID = /^[\w-]{1,64}$/;
 const sanitizeRoutes = (input) => {
   const list = Array.isArray(input) ? input.slice(0, MAX_ROUTES) : [];
   const ids = new Set();
   return list.map((route, index) => {
     if (!route || typeof route !== 'object') throw new Error('Invalid route.');
-    let id = typeof route.id === 'string' && BLOCK_ID.test(route.id) ? route.id : crypto.randomUUID();
+    let id = typeof route.id === 'string' && ID_PATTERN.test(route.id) ? route.id : crypto.randomUUID();
     if (ids.has(id)) id = crypto.randomUUID();
     ids.add(id);
-    const raw = Array.isArray(route.steps) ? route.steps : Array.isArray(route.blocks) ? route.blocks.map((b) => [b]) : [];
-    const steps = raw
-      .map((step) => [...new Set((Array.isArray(step) ? step : [step]).filter((b) => typeof b === 'string' && BLOCK_ID.test(b)))].slice(0, 10))
-      .filter((step) => step.length > 0)
-      .slice(0, 100);
-    return {
-      id,
-      name: String(route.name || '').trim().slice(0, 40) || `Route ${index + 1}`,
-      steps,
-      loop: Boolean(route.loop)
-    };
+    return { id, name: String(route.name || '').trim().slice(0, 40) || `Route ${index + 1}` };
   });
 };
 
@@ -458,8 +457,13 @@ class SettingsStore {
     return JSON.parse(JSON.stringify(this.data.routes || []));
   }
 
+  // Rules of a route that is gone keep working, without route.
   setRoutes(routes) {
     this.data.routes = sanitizeRoutes(routes);
+    const ids = new Set(this.data.routes.map((r) => r.id));
+    this.data.rules.forEach((rule) => {
+      if (rule.route && !ids.has(rule.route)) rule.route = null;
+    });
     this.save();
     return this.getRoutes();
   }
@@ -494,8 +498,13 @@ class SettingsStore {
     return JSON.parse(JSON.stringify(this.data.rules));
   }
 
-  setRules(rules) {
-    this.data.rules = sanitizeRules(rules, this.data.layout.tiles);
+  // Rules, and optionally the routes they are grouped in (saved together, so a rule
+  // never points to a route the server does not know yet).
+  setRules(rules, routes) {
+    const nextRoutes = routes === undefined ? this.data.routes : sanitizeRoutes(routes);
+    const nextRules = sanitizeRules(rules, this.data.layout.tiles, new Set(nextRoutes.map((r) => r.id)));
+    this.data.routes = nextRoutes;
+    this.data.rules = nextRules;
     this.save();
     return this.getRules();
   }

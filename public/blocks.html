@@ -18,7 +18,6 @@
       </div>
 
       <div class="topbar-actions">
-        <span id="saveState" class="save-state" aria-live="polite"></span>
         <div class="menu">
           <button type="button" id="menuButton" class="icon-button menu-button" aria-haspopup="menu" aria-expanded="false" aria-controls="mainMenu" aria-label="Menu" title="Menu" data-i18n-attr="aria-label:menu.title; title:menu.title">
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M4 6.25A.75.75 0 0 1 4.75 5.5h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 6.25Zm0 5.75a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 12Zm.75 5a.75.75 0 0 0 0 1.5h14.5a.75.75 0 0 0 0-1.5H4.75Z"/></svg>
@@ -53,19 +52,9 @@
           </div>
           <div id="blockRows" role="rowgroup"></div>
         </div>
-      </section>
-
-      <section class="card decoders-card" aria-labelledby="routesHeading">
-        <div class="card-header">
-          <h2 id="routesHeading" data-i18n="routes.heading">Fahrstraßen</h2>
-          <button type="button" id="addRoute" class="ghost small" data-i18n="routes.add">+ New Fahrstraße</button>
-        </div>
-        <p class="hint decoders-hint" data-i18n="routes.hint">
-          A Fahrstraße is a sequence of blocks. In automated operation the turnouts are set from each block to the next one when it is free; if it is occupied, the locomotive is stopped in its block and you restart it when the block is free.
-        </p>
-        <div id="routeList" class="route-list"></div>
         <p id="statusLine" class="response" aria-live="polite"></p>
       </section>
+
     </main>
 
     <script src="i18n.js"></script>

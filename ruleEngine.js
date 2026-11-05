@@ -5,19 +5,24 @@ const MAX_LOG = 50;
 const PULSE_MS = 2000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Runs the logic rules. Sensors (contact tracks) report on/off; when a sensor changes,
-// every enabled rule whose trigger matches the new state and whose conditions all hold
-// runs its actions in order. Sensor states live in memory only (they describe the
-// track right now, not the layout), switch states come from the saved layout.
+// Runs the logic rules. Triggers: sensors (contact tracks) report on/off, and switchable
+// elements (turnouts, signals) switched by hand report their new state. Every enabled
+// rule whose trigger matches and whose conditions all hold runs its actions in order.
+// Sensor states live in memory only (they describe the track right now, not the
+// layout), switch states come from the saved layout.
 //
-// Actions never change sensors, so one rule cannot start a chain of other rules.
+// Actions switch elements (not as "by hand") and set locomotive speeds; they never
+// change sensors, so one rule cannot start a chain of other rules.
 class RuleEngine {
   // getRules(): saved rules · getTile(id): layout element or null
   // operate(tile, state): switches an element, resolves to { sent, error }
-  constructor({ getRules, getTile, operate, wait = sleep }) {
+  // setLocoSpeed(block id, percent): speed of the locomotive in a block,
+  //   resolves to { sent, error, loco }
+  constructor({ getRules, getTile, operate, setLocoSpeed = async () => ({ sent: false, error: 'not available' }), wait = sleep }) {
     this.getRules = getRules;
     this.getTile = getTile;
     this.operate = operate;
+    this.setLocoSpeed = setLocoSpeed;
     this.wait = wait;
     this.sensors = new Map(); // tile id -> true (on) / false (off)
     this.pulses = new Map(); // tile id -> timer of a manual press
@@ -62,6 +67,15 @@ class RuleEngine {
     return { changed, fired: fired.map((rule) => rule.id), done };
   }
 
+  // A turnout or signal was switched by hand (click): run the rules it triggers.
+  // Returns { fired: [rule ids], done }.
+  elementSwitched(id, state) {
+    const rules = this.getRules().filter((rule) => rule.enabled && rule.trigger.device === id && rule.trigger.state === state);
+    const fired = rules.filter((rule) => this.conditionsHold(rule));
+    const done = Promise.all(fired.map((rule) => this.run(rule)));
+    return { fired: fired.map((rule) => rule.id), done };
+  }
+
   // Manual press: the contact turns on and, after `ms`, off again. Both changes run
   // their rules. Pressing again while it is on restarts the time.
   pulseSensor(id, ms = PULSE_MS) {
@@ -98,6 +112,10 @@ class RuleEngine {
     this.addLog({ rule: rule.id, name: rule.name, kind: 'started', text: 'started' });
     for (const action of rule.actions) {
       if (action.delay > 0) await this.wait(action.delay * 1000);
+      if (action.type === 'loco') {
+        await this.runLocoAction(rule, action);
+        continue;
+      }
       const tile = this.getTile(action.device);
       if (!tile) {
         this.addLog({ rule: rule.id, name: rule.name, kind: 'missing', text: 'skipped an action: element no longer exists', error: true });
@@ -133,6 +151,27 @@ class RuleEngine {
         });
       }
     }
+  }
+
+  async runLocoAction(rule, action) {
+    let result;
+    try {
+      result = await this.setLocoSpeed(action.block, action.speed);
+    } catch (error) {
+      result = { sent: false, error: error.message };
+    }
+    this.addLog({
+      rule: rule.id,
+      name: rule.name,
+      kind: 'loco',
+      block: action.block,
+      speed: action.speed,
+      loco: result.loco || null,
+      sent: Boolean(result.sent),
+      reason: result.sent ? undefined : result.error,
+      text: result.sent ? `${result.loco} → ${action.speed}%` : `loco speed not set: ${result.error}`,
+      error: !result.sent
+    });
   }
 
   getLive() {
