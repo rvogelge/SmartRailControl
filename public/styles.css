@@ -1685,6 +1685,23 @@ body[data-mode='run'] .layout-editor {
   text-decoration: underline;
 }
 
+.move-buttons {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.move-buttons .icon-button {
+  font-size: 0.75rem;
+}
+
+.move-buttons .icon-button:hover {
+  color: var(--accent);
+}
+
+.move-buttons .icon-button:disabled {
+  visibility: hidden;
+}
+
 .icon-button.small-x {
   width: 28px;
   height: 28px;
@@ -2302,6 +2319,22 @@ body:not([data-mode='run']) .run-only {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
+}
+
+.fold-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.fold-button:hover {
+  color: var(--text);
+}
+
+.route-group.folded .route-group-name {
+  max-width: 260px;
 }
 
 .route-group-head h3 {

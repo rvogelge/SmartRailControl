@@ -288,6 +288,15 @@ const stateSelect = (role, item, field) => {
   );
 };
 
+// ▲ ▼: move an action earlier or later (actions run from top to bottom).
+const moveButtons = (i, count) =>
+  el(
+    'span',
+    { className: 'move-buttons' },
+    el('button', { type: 'button', className: 'icon-button small-x', 'data-move': `${i}:-1`, disabled: i === 0, 'aria-label': tr('rules.moveUp'), title: tr('rules.moveUp'), text: '▲' }),
+    el('button', { type: 'button', className: 'icon-button small-x', 'data-move': `${i}:1`, disabled: i === count - 1, 'aria-label': tr('rules.moveDown'), title: tr('rules.moveDown'), text: '▼' })
+  );
+
 const removeButton = (field, label) =>
   el('button', { type: 'button', className: 'icon-button small-x', 'data-remove': field, 'aria-label': label, title: label, text: '×' });
 
@@ -353,6 +362,7 @@ const renderRule = (rule, index) => {
         el('input', { type: 'number', min: '0', max: '3600', step: '0.5', value: String(a.delay || 0), 'data-field': `actions.${i}.delay` }),
         el('span', { text: 's' })
       ),
+      moveButtons(i, rule.actions.length),
       removeButton(`actions.${i}`, tr('rules.removeAction'))
     );
 
@@ -374,6 +384,7 @@ const renderRule = (rule, index) => {
         el('input', { type: 'number', min: '0', max: '3600', step: '0.5', value: String(a.delay || 0), 'data-field': `actions.${i}.delay` }),
         el('span', { text: 's' })
       ),
+      moveButtons(i, rule.actions.length),
       removeButton(`actions.${i}`, tr('rules.removeAction'))
     )
   );
@@ -416,6 +427,39 @@ const renderRule = (rule, index) => {
   );
 };
 
+// Folded routes (per browser): their rules are hidden, the head stays.
+const COLLAPSED_KEY = 'smartrailcontrol.collapsedRoutes';
+const LOOSE = '_loose'; // the section of rules without route
+const collapsed = (() => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || []);
+  } catch (_error) {
+    return new Set();
+  }
+})();
+const setCollapsed = (id, folded) => {
+  if (folded) collapsed.add(id);
+  else collapsed.delete(id);
+  try {
+    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed]));
+  } catch (_error) {
+    // Not remembered in this browser.
+  }
+};
+// While filtering by a device, matching rules are always shown.
+const isFolded = (id) => collapsed.has(id) && !state.filter;
+
+const foldButton = (id, name) =>
+  el('button', {
+    type: 'button',
+    className: 'icon-button fold-button',
+    'data-fold': id,
+    'aria-expanded': String(!isFolded(id)),
+    'aria-label': tr(isFolded(id) ? 'rg.expand' : 'rg.collapse', { name }),
+    title: tr(isFolded(id) ? 'rg.expand' : 'rg.collapse', { name }),
+    text: isFolded(id) ? '▸' : '▾'
+  });
+
 // Switch state of a route: all of its rules on, all off, or some.
 const routeState = (route) => {
   const rules = state.rules.filter((r) => r.route === route.id);
@@ -435,33 +479,50 @@ const renderRouteGroup = (route, items) => {
   });
   toggle.indeterminate = partly;
   const status = rules.length === 0 ? tr('rg.noRules') : partly ? tr('rg.partly', { on, n: rules.length }) : tr(all ? 'rg.allOn' : 'rg.allOff', { n: rules.length });
+  const folded = isFolded(route.id);
   return el(
     'section',
-    { className: `route-group${all ? ' active' : partly ? ' partly' : ''}`, 'data-route': route.id },
+    { className: `route-group${all ? ' active' : partly ? ' partly' : ''}${folded ? ' folded' : ''}`, 'data-route': route.id },
     el(
       'div',
       { className: 'route-group-head' },
+      foldButton(route.id, route.name),
       el('label', { className: 'switch', title: tr('rg.switchTitle') }, toggle, el('span', { className: 'switch-track', 'aria-hidden': 'true' })),
       el('input', { className: 'route-group-name', type: 'text', maxlength: '40', value: route.name, 'data-route-field': 'name', 'aria-label': tr('rg.nameAria') }),
       el('span', { className: 'route-group-status', text: status }),
       el('button', { type: 'button', className: 'ghost small', 'data-route-action': 'add-rule', text: tr('rg.addRule') }),
       el('button', { type: 'button', className: 'ghost small danger-text', 'data-route-action': 'delete', text: tr('rg.delete') })
     ),
-    items.length
-      ? el('div', { className: 'route-group-rules' }, ...items.map(({ rule, index }) => renderRule(rule, index)))
-      : el('p', { className: 'route-group-empty', text: tr('rg.empty') })
+    folded
+      ? null
+      : items.length
+        ? el('div', { className: 'route-group-rules' }, ...items.map(({ rule, index }) => renderRule(rule, index)))
+        : el('p', { className: 'route-group-empty', text: tr('rg.empty') })
   );
 };
 
-const renderLooseGroup = (items) =>
-  el(
+const renderLooseGroup = (items) => {
+  // Only foldable when there are routes (otherwise it is the whole list).
+  const folded = state.routes.length > 0 && isFolded(LOOSE);
+  return el(
     'section',
-    { className: 'route-group loose' },
-    state.routes.length ? el('div', { className: 'route-group-head' }, el('h3', { text: tr('rg.withoutRoute') })) : null,
-    items.length
-      ? el('div', { className: 'route-group-rules' }, ...items.map(({ rule, index }) => renderRule(rule, index)))
-      : el('p', { className: 'route-group-empty', text: tr('rg.looseEmpty') })
+    { className: `route-group loose${folded ? ' folded' : ''}` },
+    state.routes.length
+      ? el(
+          'div',
+          { className: 'route-group-head' },
+          foldButton(LOOSE, tr('rg.withoutRoute')),
+          el('h3', { text: tr('rg.withoutRoute') }),
+          el('span', { className: 'route-group-status', text: tr('rg.count', { n: items.length }) })
+        )
+      : null,
+    folded
+      ? null
+      : items.length
+        ? el('div', { className: 'route-group-rules' }, ...items.map(({ rule, index }) => renderRule(rule, index)))
+        : el('p', { className: 'route-group-empty', text: tr('rg.looseEmpty') })
   );
+};
 
 const renderRules = () => {
   // Keep focus on the same field across re-renders.
@@ -621,6 +682,11 @@ ui.ruleList.addEventListener('click', (event) => {
   if (button.dataset.remove) {
     const [list, index] = button.dataset.remove.split('.');
     rule[list].splice(Number(index), 1);
+  } else if (button.dataset.move) {
+    const [index, step] = button.dataset.move.split(':').map(Number);
+    const target = index + step;
+    if (target < 0 || target >= rule.actions.length) return;
+    [rule.actions[index], rule.actions[target]] = [rule.actions[target], rule.actions[index]];
   } else if (button.dataset.action === 'add-condition') {
     const device = firstDevice('condition');
     rule.conditions.push({ device: device ? device.id : null, state: device ? conditionStates(device.type)[0] : '' });
@@ -660,6 +726,7 @@ ui.ruleList.addEventListener('click', (event) => {
 const addRule = (route = null) => {
   const rule = newRule();
   rule.route = route;
+  setCollapsed(route || LOOSE, false); // show the new rule
   // A new rule made while filtering by a sensor starts from that sensor.
   const filterTile = state.filter && tileById(state.filter);
   if (filterTile && ruleRoles(filterTile.type).trigger) rule.trigger.device = filterTile.id;
@@ -718,6 +785,16 @@ ui.ruleList.addEventListener('change', (event) => {
   renderRules();
   renderDevices();
   scheduleSave();
+});
+
+ui.ruleList.addEventListener('click', (event) => {
+  const fold = event.target.closest('[data-fold]');
+  if (fold) {
+    setCollapsed(fold.dataset.fold, !collapsed.has(fold.dataset.fold));
+    renderRules();
+    const again = ui.ruleList.querySelector(`[data-fold="${CSS.escape(fold.dataset.fold)}"]`);
+    if (again) again.focus();
+  }
 });
 
 ui.ruleList.addEventListener('click', (event) => {
