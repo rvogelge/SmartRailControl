@@ -104,6 +104,10 @@ const sanitizeLayout = (input) => {
     if (TrackCatalog.addressSlots(tile.type).length > 0) {
       sanitized.addresses = sanitizeAddresses(tile.type, tile.addresses);
     }
+    // Inverted drives (green and red swapped): kept only when at least one is inverted.
+    if (TrackCatalog.canInvert(tile.type) && Array.isArray(tile.invert) && tile.invert.some(Boolean)) {
+      sanitized.invert = TrackCatalog.addressSlots(tile.type).map((_label, i) => Boolean(tile.invert[i]));
+    }
     return sanitized;
   });
 

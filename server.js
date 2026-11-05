@@ -166,7 +166,8 @@ const operateTile = async (tile, state) => {
     }
   }
 
-  const commands = TrackCatalog.commandsFor(tile.type, momentary ? 'trigger' : state);
+  // Inverted drives get green and red swapped.
+  const commands = TrackCatalog.commandsForTile(tile, momentary ? 'trigger' : state);
   if (!commands) {
     const error = new Error(`${tile.type} cannot be operated.`);
     error.status = 400;

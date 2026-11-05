@@ -194,3 +194,33 @@ test('saves, trims and removes decoder notes', () => {
   assert.deepEqual(new SettingsStore(file).getDecoderNotes(), { 12: 'Entry turnout' });
   assert.throws(() => store.setDecoderNote(0, 'x'));
 });
+
+test('inverted drives swap green and red, per address', () => {
+  const TrackCatalog = require('../public/trackCatalog');
+  assert.deepEqual(TrackCatalog.commandsForTile({ type: 'turnout-left', invert: [true] }, 'straight'), [[0, 'red']]);
+  assert.deepEqual(TrackCatalog.commandsForTile({ type: 'turnout-left' }, 'straight'), [[0, 'green']]);
+  assert.deepEqual(TrackCatalog.commandsForTile({ type: 'turnout-3way', invert: [false, true] }, 'left'), [[1, 'red'], [0, 'red']]);
+  assert.deepEqual(TrackCatalog.commandsForTile({ type: 'signal', invert: [true] }, 'go'), [[0, 'red']]);
+  assert.equal(TrackCatalog.commandsForTile({ type: 'contact', invert: [true] }, 'on'), null);
+  assert.equal(TrackCatalog.canInvert('turnout-right'), true);
+  assert.equal(TrackCatalog.canInvert('contact'), false);
+  assert.equal(TrackCatalog.canInvert('straight'), false);
+});
+
+test('the layout keeps inverted drives, only for actor elements', () => {
+  const file = tmpFile();
+  const store = new SettingsStore(file);
+  store.setLayout({
+    cols: 10,
+    rows: 6,
+    tiles: [
+      { id: 'a', type: 'turnout-3way', x: 0, y: 0, addresses: [5, 6], invert: [false, 1] },
+      { id: 'b', type: 'signal', x: 2, y: 0, invert: [false] },
+      { id: 'c', type: 'contact', x: 4, y: 0, invert: [true] }
+    ]
+  });
+  const tiles = new SettingsStore(file).getLayout().tiles;
+  assert.deepEqual(tiles[0].invert, [false, true]);
+  assert.equal('invert' in tiles[1], false);
+  assert.equal('invert' in tiles[2], false);
+});

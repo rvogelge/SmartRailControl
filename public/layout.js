@@ -685,7 +685,23 @@ const renderProps = () => {
         if (event.key === 'Enter') input.blur();
       });
       label.append(span, input);
-      return label;
+      if (!TrackCatalog.canInvert(tile.type)) return label;
+
+      // Drive wired the other way round: swap green and red for this address.
+      const group = document.createElement('span');
+      group.className = 'props-group';
+      const invert = document.createElement('label');
+      invert.className = 'props-invert';
+      invert.title = tr('lay.invertTitle');
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = Boolean(tile.invert && tile.invert[i]);
+      box.addEventListener('change', () => setInvert(tile.id, i, box.checked));
+      const text = document.createElement('span');
+      text.textContent = tr('lay.invert');
+      invert.append(box, text);
+      group.append(label, invert);
+      return group;
     })
   );
 };
@@ -906,6 +922,18 @@ const setAddress = (tileId, slot, input) => {
   renderToolbar(issues);
   renderIssues(issues);
   setStatus(value === null ? tr('lay.addrCleared', { label: I18n.label(tile.type) }) : tr('lay.addrSaved', { name: describe(tile) }), 'ok');
+};
+
+const setInvert = (tileId, slot, inverted) => {
+  const tile = tileById(tileId);
+  if (!tile) return;
+  const slots = addressSlots(tile.type);
+  const invert = slots.map((_s, i) => (i === slot ? inverted : Boolean(tile.invert && tile.invert[i])));
+  if (invert.some(Boolean)) tile.invert = invert;
+  else delete tile.invert;
+  scheduleSave();
+  const drive = slots.length > 1 ? ` (${I18n.addressLabel(tile.type, slot)})` : '';
+  setStatus(tr(inverted ? 'lay.invertOn' : 'lay.invertOff', { name: `${describe(tile)}${drive}` }), 'ok');
 };
 
 const setTool = (tool) => {

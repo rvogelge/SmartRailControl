@@ -131,6 +131,19 @@
     });
   };
 
+  const commandsFor = (type, state) => (TYPES[type] && TYPES[type].commands && TYPES[type].commands[state]) || null;
+
+  // Actor elements (turnouts, signals, uncouplers) can have each decoder address inverted:
+  // green and red are swapped, for a drive that is wired the other way round.
+  const canInvert = (type) => Boolean(TYPES[type] && TYPES[type].commands);
+  const SWAPPED = { green: 'red', red: 'green' };
+  const commandsForTile = (tile, state) => {
+    const commands = commandsFor(tile.type, state);
+    if (!commands) return null;
+    const invert = tile.invert || [];
+    return commands.map(([slot, color]) => [slot, invert[slot] ? SWAPPED[color] : color]);
+  };
+
   const statesOf = (type) => (TYPES[type] && TYPES[type].states) || null;
   const sensorStatesOf = (type) => (TYPES[type] && TYPES[type].sensorStates) || null;
   const isMomentary = (type) => Boolean(TYPES[type] && TYPES[type].momentary);
@@ -167,7 +180,9 @@
     cellsOf,
     ADDRESS_SPACES,
     addressSpace,
-    commandsFor: (type, state) => (TYPES[type] && TYPES[type].commands && TYPES[type].commands[state]) || null,
+    commandsFor,
+    commandsForTile,
+    canInvert,
     findAddressConflicts
   };
 });

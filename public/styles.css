@@ -900,6 +900,26 @@ body[data-mode='run'] .zoom-group {
   padding: 6px 8px;
 }
 
+.props-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.props-invert {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.props-invert input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .props-note {
   font-size: 0.85rem;
   color: var(--muted);
