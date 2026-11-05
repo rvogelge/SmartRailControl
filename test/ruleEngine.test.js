@@ -174,7 +174,7 @@ test('loco action: sets the speed of the locomotive in a block, logged with the 
 
 test('sanitizeRules keeps loco actions with block and speed 0..100', () => {
   const [r] = SettingsStore.sanitizeRules([rule({ actions: [{ type: 'loco', block: 'b1', speed: 250, delay: 2 }, { type: 'loco', block: '../x', speed: -5 }] })], tiles);
-  assert.deepEqual(r.actions, [{ type: 'loco', block: 'b1', speed: 100, delay: 2 }, { type: 'loco', block: null, speed: 0, delay: 0 }]);
+  assert.deepEqual(r.actions, [{ type: 'loco', block: 'b1', speed: 100, emergency: false, delay: 2 }, { type: 'loco', block: null, speed: 0, emergency: false, delay: 0 }]);
 });
 
 test('block condition: the rule runs only while the block is free (or occupied)', async () => {
@@ -203,4 +203,23 @@ test('block condition: the rule runs only while the block is free (or occupied)'
 test('sanitizeRules keeps block conditions (free / occupied)', () => {
   const [r] = SettingsStore.sanitizeRules([rule({ conditions: [{ type: 'block', block: 'b1', state: 'occupied' }, { type: 'block', block: 'b2', state: 'weird' }] })], tiles);
   assert.deepEqual(r.conditions, [{ type: 'block', block: 'b1', state: 'occupied' }, { type: 'block', block: 'b2', state: 'free' }]);
+});
+
+test('loco action at 0 % can stop immediately (emergency stop); only at 0 %', async () => {
+  const [r] = SettingsStore.sanitizeRules([rule({ actions: [{ type: 'loco', block: 'b1', speed: 0, emergency: true }, { type: 'loco', block: 'b1', speed: 20, emergency: true }] })], tiles);
+  assert.deepEqual(r.actions.map((a) => a.emergency), [true, false]);
+  const calls = [];
+  const engine = new RuleEngine({
+    getRules: () => [],
+    getTile: () => null,
+    operate: async () => ({ sent: true }),
+    setLocoSpeed: async (block, percent, options) => {
+      calls.push([block, percent, options]);
+      return { sent: true, loco: 'V200' };
+    },
+    wait: async () => {}
+  });
+  await engine.run(r);
+  assert.deepEqual(calls, [['b1', 0, { emergency: true }], ['b1', 20, { emergency: false }]]);
+  assert.equal(engine.getLive().log[1].emergency, true);
 });

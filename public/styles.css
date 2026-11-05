@@ -2462,6 +2462,15 @@ html.embedded .topbar {
   font-size: 0.82rem;
 }
 
+.emergency-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--danger);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
 .speed-field input {
   width: 64px;
 }

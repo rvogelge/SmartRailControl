@@ -16,8 +16,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 class RuleEngine {
   // getRules(): saved rules · getTile(id): layout element or null
   // operate(tile, state): switches an element, resolves to { sent, error }
-  // setLocoSpeed(block id, percent): speed of the locomotive in a block,
-  //   resolves to { sent, error, loco }
+  // setLocoSpeed(block id, percent, { emergency }): speed of the locomotive in a block
+  //   (emergency: stop at once), resolves to { sent, error, loco }
   // isBlockOccupied(block id): for block conditions
   constructor({
     getRules,
@@ -169,7 +169,7 @@ class RuleEngine {
   async runLocoAction(rule, action) {
     let result;
     try {
-      result = await this.setLocoSpeed(action.block, action.speed);
+      result = await this.setLocoSpeed(action.block, action.speed, { emergency: Boolean(action.emergency) });
     } catch (error) {
       result = { sent: false, error: error.message };
     }
@@ -179,10 +179,11 @@ class RuleEngine {
       kind: 'loco',
       block: action.block,
       speed: action.speed,
+      emergency: Boolean(action.emergency),
       loco: result.loco || null,
       sent: Boolean(result.sent),
       reason: result.sent ? undefined : result.error,
-      text: result.sent ? `${result.loco} → ${action.speed}%` : `loco speed not set: ${result.error}`,
+      text: result.sent ? `${result.loco} → ${action.emergency ? 'emergency stop' : `${action.speed}%`}` : `loco speed not set: ${result.error}`,
       error: !result.sent
     });
   }

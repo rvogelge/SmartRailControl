@@ -188,7 +188,9 @@ const sanitizeRules = (input, tiles = [], routeIds = null) => {
         if (a && a.type === 'loco') {
           const block = typeof a.block === 'string' && ID_PATTERN.test(a.block) ? a.block : null;
           const speed = Math.max(0, Math.min(100, Math.round(Number(a.speed) || 0)));
-          return { type: 'loco', block, speed, delay };
+          // At 0 %: stop immediately (emergency stop, without the decoder's braking delay).
+          const emergency = speed === 0 && Boolean(a.emergency);
+          return { type: 'loco', block, speed, emergency, delay };
         }
         return { ...ref(a, 'an action', 'action', TrackCatalog.actionStates, name), delay };
       })

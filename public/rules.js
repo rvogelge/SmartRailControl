@@ -191,7 +191,7 @@ const summary = (rule) => {
   const acts = rule.actions.map((a) => {
     const tile = tileById(a.device);
     const what = isLocoAction(a)
-      ? tr('rules.sumLoco', { block: a.block ? blockLabel(a.block) : '?', speed: a.speed })
+      ? tr(a.emergency ? 'rules.sumLocoEmergency' : 'rules.sumLoco', { block: a.block ? blockLabel(a.block) : '?', speed: a.speed })
       : `${nameOf(a.device)} → ${tile ? stateLabel(tile.type, a.state) : a.state}`;
     return a.delay > 0 ? tr('rules.sumAfter', { s: a.delay, what }) : what;
   });
@@ -386,6 +386,15 @@ const renderRule = (rule, index) => {
         el('input', { type: 'number', min: '0', max: '100', step: '5', value: String(a.speed || 0), 'data-field': `actions.${i}.speed`, 'aria-label': tr('rules.speed') }),
         el('span', { text: '%' })
       ),
+      // At 0 %: stop at once instead of braking with the decoder's delay.
+      Number(a.speed) === 0
+        ? el(
+            'label',
+            { className: 'emergency-field', title: tr('rules.emergencyTitle') },
+            el('input', { type: 'checkbox', 'data-field': `actions.${i}.emergency`, checked: Boolean(a.emergency) }),
+            el('span', { text: tr('rules.emergency') })
+          )
+        : null,
       el(
         'label',
         { className: 'delay-field', title: tr('rules.delayTitle') },
@@ -600,7 +609,8 @@ const logText = (e) => {
   if (e.kind === 'missing') return tr('log.missing');
   if (e.kind === 'loco') {
     const block = e.block ? blockLabel(e.block) : '?';
-    return e.sent ? tr('log.loco', { loco: e.loco, block, speed: e.speed }) : tr('log.locoNotSet', { block, reason: e.reason });
+    if (!e.sent) return tr('log.locoNotSet', { block, reason: e.reason });
+    return tr(e.emergency ? 'log.locoEmergency' : 'log.loco', { loco: e.loco, block, speed: e.speed });
   }
   if (e.kind === 'action') {
     const what = `${labelOf(e.type)} → ${stateLabel(e.type, e.state)}`;
@@ -678,6 +688,11 @@ const applyField = (rule, field, input) => {
   }
   if (key === 'speed') {
     item.speed = Math.max(0, Math.min(100, Math.round(Number(input.value) || 0)));
+    if (item.speed !== 0) item.emergency = false;
+    return true;
+  }
+  if (key === 'emergency') {
+    item.emergency = input.checked;
     return true;
   }
   item[key] = input.value || null;

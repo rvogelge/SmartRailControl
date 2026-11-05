@@ -233,8 +233,9 @@ const operateTile = async (tile, state) => {
 };
 
 // Rule action: speed (% of its max speed) of the locomotive that occupies a block.
-// Direction and light stay; 0 % stops it.
-const setBlockLocoSpeed = async (blockId, percent) => {
+// Direction and light stay; 0 % stops it, with `emergency` at once (emergency stop:
+// the decoder skips its braking delay).
+const setBlockLocoSpeed = async (blockId, percent, { emergency = false } = {}) => {
   const occupant = blocks.getLive()[blockId];
   if (!occupant) return { sent: false, error: 'the block is free' };
   if (!occupant.loco) return { sent: false, error: 'unknown train in the block' };
@@ -245,7 +246,8 @@ const setBlockLocoSpeed = async (blockId, percent) => {
     decoderId: controller.decoderId,
     speed,
     direction: controller.direction,
-    stop: speed === 0,
+    stop: speed === 0 && !emergency,
+    emergency: speed === 0 && emergency,
     light: controller.light
   });
   locoSpeeds.set(controller.decoderId, speed);
