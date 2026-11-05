@@ -209,6 +209,10 @@ const s88ModuleCount = () => {
 
 // s88 monitor (edit mode): the last contacts that changed, newest last.
 const S88_MONITOR_SIZE = 20;
+// A contact track is often closed for only 0.2–0.3 s, shorter than the browsers poll
+// /api/live. For the display it stays on at least this long, so no closure goes unseen.
+// The rules still get the real on and off.
+const S88_DISPLAY_HOLD_MS = 1500;
 const s88Events = [];
 let s88Seq = 0;
 const recordS88Event = (contact, on, tiles) => {
@@ -290,8 +294,23 @@ app.get('/api/live', (_req, res) => {
   const states = Object.fromEntries(
     settingsStore.getLayout().tiles.filter((t) => t.state !== undefined).map((t) => [t.id, t.state])
   );
-  const contactsOn = [...feedback.contacts].filter(([, on]) => on).map(([contact]) => contact).sort((a, b) => a - b);
-  res.json({ states, ...ruleEngine.getLive(), feedback: feedback.getStatus(), s88: { events: s88Events, contactsOn } });
+  const live = ruleEngine.getLive();
+  const contactsOn = new Set([...feedback.contacts].filter(([, on]) => on).map(([contact]) => contact));
+  const holdSince = Date.now() - S88_DISPLAY_HOLD_MS;
+  s88Events
+    .filter((event) => event.on && Date.parse(event.at) >= holdSince)
+    .forEach((event) => {
+      contactsOn.add(event.contact);
+      event.tiles.forEach((id) => {
+        live.sensors[id] = true;
+      });
+    });
+  res.json({
+    states,
+    ...live,
+    feedback: feedback.getStatus(),
+    s88: { events: s88Events, contactsOn: [...contactsOn].sort((a, b) => a - b) }
+  });
 });
 
 app.get('/api/rules', (_req, res) => {

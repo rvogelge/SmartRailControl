@@ -1393,6 +1393,8 @@ window.addEventListener('languagechange', () => {
 
 init();
 
+// Twice a second, so contact tracks light up promptly (the server holds each closure
+// on for 1.5 s, so none is missed).
 setInterval(() => {
   if (document.visibilityState === 'visible') pollLive();
-}, 1000);
+}, 500);
