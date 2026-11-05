@@ -22,7 +22,7 @@ test('serial service defaults to an Intellibox-supported baud rate', () => {
 test('P50Xb XLok packet has the X prefix for locomotive 242 forward speed 27', () => {
   const service = createService();
   const packet = service.buildLocomotivePacket({ decoderId: 242, speed: 27, direction: 'forward', stop: false });
-  assert.deepEqual(packet, [0x58, 0x80, 0xF2, 0x00, 0x1C, 0x20]);
+  assert.deepEqual(packet, [0x58, 0x80, 0xF2, 0x00, 0x1C, 0x60]);
   assert.deepEqual(service.lastPacket, packet);
 });
 
@@ -35,8 +35,8 @@ test('P50X speed 1 is never sent for a normal speed command (1 = emergency stop)
 
 test('P50X stop, emergency stop and reverse', () => {
   const service = createService();
-  assert.deepEqual(service.buildLocomotivePacket({ decoderId: 3, speed: 50, direction: 'reverse', stop: true }), [0x58, 0x80, 0x03, 0x00, 0x00, 0x00]);
-  assert.deepEqual(service.buildLocomotivePacket({ decoderId: 3, speed: 50, direction: 'forward', emergency: true }), [0x58, 0x80, 0x03, 0x00, 0x01, 0x20]);
+  assert.deepEqual(service.buildLocomotivePacket({ decoderId: 3, speed: 50, direction: 'reverse', stop: true }), [0x58, 0x80, 0x03, 0x00, 0x00, 0x40]);
+  assert.deepEqual(service.buildLocomotivePacket({ decoderId: 3, speed: 50, direction: 'forward', emergency: true }), [0x58, 0x80, 0x03, 0x00, 0x01, 0x60]);
 });
 
 test('P50X encodes long addresses little-endian', () => {

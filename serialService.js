@@ -10,6 +10,9 @@ const DEFAULT_PROTOCOL = 'P50X';
 const P50X_PREFIX = 0x58;
 const P50X_XLOK = 0x80;
 const P50X_DIR_FORWARD = 0x20;
+// XLok byte 4, bit 6: take the locomotive over even when another controller (e.g. the
+// Intellibox's own throttle) has it; without it the Intellibox answers 0x0D (XLKBUSY).
+const P50X_FORCE = 0x40;
 const P50X_LIGHT = 0x10;
 const P50X_XFUNC = 0x88; // F1-F8 of a locomotive
 const P50_FUNCTION = 0x40; // legacy P50: 64 + f1..f4 bits, then the address
@@ -29,8 +32,15 @@ const P50X_STATUS_OK = 0x00;
 // One-byte replies of the Intellibox to P50X commands.
 const P50X_REPLIES = {
   0x00: 'OK',
+  0x01: 'XERROR (unknown command)',
   0x02: 'XBADPRM (bad parameter)',
+  0x06: 'XPWOFF (track power off)',
+  0x08: 'XNOLSPC (no space in the loco command queue)',
+  0x0a: 'XNODATA (no data)',
   0x0b: 'XNOSLOT (command queue full)',
+  0x0c: 'XLOKBADPRM (bad loco parameter)',
+  0x0d: 'XLKBUSY (loco is controlled by another device)',
+  0x0e: 'XBADTRNT (bad turnout address)',
   0x41: 'XLKHALT (accepted, Intellibox in halt mode)',
   0x42: 'XLKPOFF (accepted, track power off)'
 };
@@ -364,7 +374,7 @@ class SerialService {
 
     const uiSpeed = stop ? 0 : clampSpeed(speed);
     const p50xSpeed = emergency ? 0x01 : uiSpeed === 0 ? 0x00 : uiSpeed + 1;
-    const flags = direction === 'reverse' ? 0x00 : P50X_DIR_FORWARD;
+    const flags = (direction === 'reverse' ? 0x00 : P50X_DIR_FORWARD) | P50X_FORCE;
 
     return [
       P50X_PREFIX,
