@@ -18,15 +18,22 @@
   // in order, as [address slot, 'green' | 'red']. Green = straight / go, red = diverging / stop.
   // footprint: { size, cells } — an element occupies an size×size block; `cells`
   // lists the squares (at rotation 0) its track actually uses. Default: 1×1.
+  // links: which track ends are joined inside the element (at rotation 0), see TRACK_ENDS.
+  // A train entering at one end may leave at any end it is linked to (all turnout routes).
   const TYPES = {
-    straight: { label: 'Straight' },
-    diagonal: { label: 'Diagonal' },
-    'curve-45-left': { label: 'Curve 45° left' },
-    'curve-45-right': { label: 'Curve 45° right' },
-    curve: { label: 'Curve 90° R1' },
-    'curve-r2': { label: 'Curve 90° R2 (parallel)', footprint: { size: 2, cells: [[0, 0], [1, 0], [1, 1]] } },
+    straight: { label: 'Straight', links: [['W', 'E']] },
+    diagonal: { label: 'Diagonal', links: [['SW', 'NE']] },
+    'curve-45-left': { label: 'Curve 45° left', links: [['W', 'NE']] },
+    'curve-45-right': { label: 'Curve 45° right', links: [['W', 'SE']] },
+    curve: { label: 'Curve 90° R1', links: [['W', 'S']] },
+    'curve-r2': {
+      label: 'Curve 90° R2 (parallel)',
+      footprint: { size: 2, cells: [[0, 0], [1, 0], [1, 1]] },
+      links: [['W', 'S2']]
+    },
     'turnout-left': {
       label: 'Turnout left',
+      links: [['W', 'E'], ['W', 'NE']],
       stateLabels: { straight: 'straight', diverging: 'diverging' },
       states: ['straight', 'diverging'],
       addresses: ['Turnout address'],
@@ -34,6 +41,7 @@
     },
     'turnout-right': {
       label: 'Turnout right',
+      links: [['W', 'E'], ['W', 'SE']],
       stateLabels: { straight: 'straight', diverging: 'diverging' },
       states: ['straight', 'diverging'],
       addresses: ['Turnout address'],
@@ -41,6 +49,7 @@
     },
     'turnout-3way': {
       label: 'Three-way turnout',
+      links: [['W', 'E'], ['W', 'NE'], ['W', 'SE']],
       stateLabels: { straight: 'straight', left: 'left', right: 'right' },
       states: ['straight', 'left', 'right'],
       addresses: ['Drive 1 (left)', 'Drive 2 (right)'],
@@ -53,17 +62,19 @@
     },
     'double-slip': {
       label: 'Crossover switch',
+      links: [['W', 'E'], ['SW', 'NE'], ['W', 'NE'], ['SW', 'E']],
       stateLabels: { straight: 'straight', turn: 'turning' },
       states: ['straight', 'turn'],
       // Only two states, so both drives are wired to one decoder output.
       addresses: ['Crossover address'],
       commands: { straight: [[0, 'green']], turn: [[0, 'red']] }
     },
-    'crossing-45': { label: 'Crossing 45°' },
-    crossing: { label: 'Crossing 90°' },
-    buffer: { label: 'Buffer stop' },
+    'crossing-45': { label: 'Crossing 45°', links: [['W', 'E'], ['SW', 'NE']] },
+    crossing: { label: 'Crossing 90°', links: [['W', 'E'], ['N', 'S']] },
+    buffer: { label: 'Buffer stop', links: [['W', null]] },
     signal: {
       label: 'Signal',
+      links: [['W', 'E']],
       stateLabels: { stop: 'stop (red)', go: 'go (green)' },
       states: ['stop', 'go'],
       addresses: ['Signal address'],
@@ -71,6 +82,7 @@
     },
     contact: {
       label: 'Contact track',
+      links: [['W', 'E']],
       addresses: ['Contact no. (feedback)'],
       addressSpace: 'feedback',
       // Input: occupied (on) / free (off). Not saved; reported at run time.
@@ -79,6 +91,7 @@
     },
     uncoupler: {
       label: 'Uncoupler',
+      links: [['W', 'E']],
       stateLabels: { trigger: 'trigger' },
       addresses: ['Uncoupler address'],
       momentary: true,
@@ -144,6 +157,97 @@
     return commands.map(([slot, color]) => [slot, invert[slot] ? SWAPPED[color] : color]);
   };
 
+  /* ---------- Track connections and blocks ---------- */
+
+  // Track ends at rotation 0 in half-square units ([x, y] from the top-left corner of the
+  // element) with the direction the track leaves in. Edge midpoints and corners.
+  const TRACK_ENDS = {
+    W: [0, 1, 'W'],
+    E: [2, 1, 'E'],
+    N: [1, 0, 'N'],
+    S: [1, 2, 'S'],
+    NE: [2, 0, 'NE'],
+    SE: [2, 2, 'SE'],
+    SW: [0, 2, 'SW'],
+    NW: [0, 0, 'NW'],
+    S2: [3, 4, 'S'] // R2 curve: bottom edge of the lower right square of its 2×2 block
+  };
+  const TURN_CW = { N: 'E', NE: 'SE', E: 'S', SE: 'SW', S: 'W', SW: 'NW', W: 'N', NW: 'NE' };
+  const OPPOSITE = { N: 'S', NE: 'SW', E: 'W', SE: 'NW', S: 'N', SW: 'NE', W: 'E', NW: 'SE' };
+
+  // A track end of a placed tile in grid half-units: { x, y, dir, key }.
+  const tileEnd = (tile, name) => {
+    const size = footprint(tile.type).size * 2;
+    let [x, y, dir] = TRACK_ENDS[name];
+    const turns = ((tile.rotation || 0) / 90) % 4;
+    for (let i = 0; i < turns; i += 1) {
+      [x, y] = [size - y, x];
+      dir = TURN_CW[dir];
+    }
+    x += tile.x * 2;
+    y += tile.y * 2;
+    return { name, x, y, dir, key: `${x},${y},${dir}` };
+  };
+  const linksOf = (type) => (TYPES[type] && TYPES[type].links) || [];
+
+  // Block start: a contact track with `block: 'right' | 'left'` (the arrow in its symbol,
+  // at rotation 0). Entering that contact's end, the block covers it and everything
+  // behind it in the arrow direction up to the next block-start contact.
+  const BLOCK_DIRECTIONS = ['right', 'left'];
+  const isBlockStart = (tile) => tile.type === 'contact' && BLOCK_DIRECTIONS.includes(tile.block);
+
+  // Every block of the layout: [{ id (= start contact id), start, tiles: [ids in track
+  // order], next: [ids of the block-start contacts it runs into] }]. Turnouts: all routes.
+  const findBlocks = (tiles) => {
+    const ends = new Map(); // "x,y,dir" -> [{ tile, name }]
+    tiles.forEach((tile) => {
+      new Set(linksOf(tile.type).flat().filter(Boolean)).forEach((name) => {
+        const end = tileEnd(tile, name);
+        if (!ends.has(end.key)) ends.set(end.key, []);
+        ends.get(end.key).push({ tile, name });
+      });
+    });
+    // The ends that meet a given end: same point, facing the other way.
+    const meeting = (end) => ends.get(`${end.x},${end.y},${OPPOSITE[end.dir]}`) || [];
+
+    return tiles.filter(isBlockStart).map((start) => {
+      const order = [start.id];
+      const seen = new Set([start.id]);
+      const next = new Set();
+      const visited = new Set();
+      const queue = [tileEnd(start, start.block === 'left' ? 'W' : 'E')];
+      while (queue.length) {
+        const exit = queue.shift();
+        meeting(exit).forEach(({ tile, name }) => {
+          if (isBlockStart(tile)) {
+            if (tile.id !== start.id) next.add(tile.id);
+            return;
+          }
+          if (visited.has(`${tile.id}:${name}`)) return;
+          visited.add(`${tile.id}:${name}`);
+          if (!seen.has(tile.id)) {
+            seen.add(tile.id);
+            order.push(tile.id);
+          }
+          linksOf(tile.type).forEach(([a, b]) => {
+            const other = a === name ? b : b === name ? a : undefined;
+            if (other) queue.push(tileEnd(tile, other));
+          });
+        });
+      }
+      return { id: start.id, start: start.id, tiles: order, next: [...next] };
+    });
+  };
+
+  // Where the loco name of a block is shown: the middle straight track, else the middle tile.
+  const blockLabelTile = (block, tiles) => {
+    const byId = new Map(tiles.map((t) => [t.id, t]));
+    const list = block.tiles.map((id) => byId.get(id)).filter(Boolean);
+    const straight = list.filter((t) => t.type === 'straight');
+    const pick = straight.length ? straight : list;
+    return pick[Math.floor((pick.length - 1) / 2)] || null;
+  };
+
   const statesOf = (type) => (TYPES[type] && TYPES[type].states) || null;
   const sensorStatesOf = (type) => (TYPES[type] && TYPES[type].sensorStates) || null;
   const isMomentary = (type) => Boolean(TYPES[type] && TYPES[type].momentary);
@@ -182,6 +286,11 @@
     addressSpace,
     commandsFor,
     commandsForTile,
+    BLOCK_DIRECTIONS,
+    isBlockStart,
+    findBlocks,
+    blockLabelTile,
+    tileEnd,
     canInvert,
     findAddressConflicts
   };

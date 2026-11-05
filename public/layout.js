@@ -124,6 +124,7 @@ const state = {
   marquee: null, // { start, end, base }
   flashing: new Set(), // momentary elements briefly highlighted in run mode
   sensors: {}, // contact tracks that are on (occupied): { id: true }
+  blocks: {}, // occupied blocks from the server: { start contact id: { loco } }
   s88: { events: [], contactsOn: [], feedback: null, lastSeq: null, fresh: false }, // s88 monitor (edit mode)
   propsFor: null, // key the properties bar was built for
   zoom: CELL_PX, // on-screen pixels per grid square
@@ -306,7 +307,7 @@ const computeIssues = () => {
 
 /* ---------- Drawing ---------- */
 
-const drawElement = (type, { rotation = 0, state: current = defaultState(type), className = '', active = false } = {}) => {
+const drawElement = (type, { rotation = 0, state: current = defaultState(type), className = '', active = false, block = null } = {}) => {
   const def = ELEMENTS[type];
   const half = (footprint(type).size * CELL) / 2;
   const group = svg('g', { class: `track ${className}${active ? ' active' : ''}`.trim() });
@@ -337,6 +338,9 @@ const drawElement = (type, { rotation = 0, state: current = defaultState(type), 
     inner.append(svg('circle', { cx: 64, cy: 18, r: 13, class: `signal-lamp ${current}` }));
   } else if (def.extra === 'contact') {
     inner.append(svg('rect', { x: 32, y: 36, width: 36, height: 28, rx: 6, class: 'contact-mark' }));
+    // Block start: arrow towards the block (turns with the element).
+    if (block === 'right') inner.append(svg('path', { d: 'M42 41 L59 50 L42 59 Z', class: 'block-arrow' }));
+    if (block === 'left') inner.append(svg('path', { d: 'M58 41 L41 50 L58 59 Z', class: 'block-arrow' }));
   } else if (def.extra === 'uncoupler') {
     inner.append(svg('path', { d: 'M40 30 V70 M60 30 V70', class: 'uncoupler-mark' }));
   }
@@ -412,8 +416,53 @@ const renderBoard = () => {
   ui.zoomOut.disabled = state.zoom <= ZOOM_MIN;
 };
 
+/* ---------- Blocks ---------- */
+
+// Blocks follow the layout (recomputed when the tiles change); occupancy comes from the server.
+let blockCache = { key: null, blocks: [] };
+const layoutBlocks = () => {
+  const key = JSON.stringify(state.tiles.map((t) => [t.id, t.type, t.x, t.y, t.rotation, t.block]));
+  if (blockCache.key !== key) blockCache = { key, blocks: TrackCatalog.findBlocks(state.tiles) };
+  return blockCache.blocks;
+};
+// The block a tile belongs to (an occupied one first, if it is in more than one).
+const blockOfTile = (id) => {
+  const blocks = layoutBlocks().filter((b) => b.tiles.includes(id));
+  return blocks.find((b) => state.blocks[b.id]) || blocks[0] || null;
+};
+const occupiedTiles = () => {
+  const map = new Map(); // tile id -> block id
+  layoutBlocks().forEach((b) => {
+    if (state.blocks[b.id]) b.tiles.forEach((id) => map.set(id, b.id));
+  });
+  return map;
+};
+
+// Loco names of occupied blocks, on the middle straight track of each block.
+const renderBlockLabels = () => {
+  const group = svg('g', { class: 'block-labels', 'pointer-events': 'none' });
+  layoutBlocks().forEach((block) => {
+    const occupied = state.blocks[block.id];
+    if (!occupied || !occupied.loco) return;
+    const tile = TrackCatalog.blockLabelTile(block, state.tiles);
+    if (!tile) return;
+    const [cx, cy] = cellsOf(tile)[0];
+    const width = Math.max(70, 22 + occupied.loco.length * 15);
+    const x = cx * CELL + CELL / 2;
+    const y = cy * CELL + CELL / 2;
+    const label = svg('g', { class: 'block-label' });
+    label.append(svg('rect', { x: x - width / 2, y: y - 17, width, height: 34, rx: 9 }));
+    const text = svg('text', { x, y: y + 9, 'text-anchor': 'middle' });
+    text.textContent = occupied.loco;
+    label.append(text);
+    group.append(label);
+  });
+  return group;
+};
+
 const renderTiles = (issues = computeIssues()) => {
   const dragging = state.drag && state.drag.moved ? new Set(state.drag.ids) : new Set();
+  const occupied = occupiedTiles();
   ui.tiles.replaceChildren(
     ...state.tiles.map((tile) => {
       const classes = ['tile'];
@@ -421,6 +470,7 @@ const renderTiles = (issues = computeIssues()) => {
       if (dragging.has(tile.id)) classes.push('dragging');
       if (state.mode === 'edit' && issues.conflictIds.has(tile.id)) classes.push('conflict');
       if (state.mode === 'run' && isClickableInRun(tile.type)) classes.push('switchable');
+      if (occupied.has(tile.id)) classes.push('block-occupied');
 
       const g = svg('g', {
         transform: `translate(${tile.x * CELL} ${tile.y * CELL})`,
@@ -432,7 +482,7 @@ const renderTiles = (issues = computeIssues()) => {
         state.flashing.has(tile.id) ||
         (state.mode === 'run' && Boolean(state.sensors[tile.id])) ||
         (state.mode === 'edit' && tile.type === 'contact' && s88IsOn(tile));
-      g.append(drawElement(tile.type, { rotation: tile.rotation, state: tile.state, active }));
+      g.append(drawElement(tile.type, { rotation: tile.rotation, state: tile.state, active, block: tile.block }));
 
       // Address badge (not rotated). In run mode only set addresses are shown.
       const addr = addressText(tile);
@@ -449,7 +499,8 @@ const renderTiles = (issues = computeIssues()) => {
         g.append(badge);
       }
       return g;
-    })
+    }),
+    renderBlockLabels()
   );
 };
 
@@ -483,7 +534,7 @@ const renderOverlay = () => {
   if (state.mode === 'run') {
     const cell = state.hoverCell;
     const tile = cell && tileAt(cell.x, cell.y);
-    if (tile && isClickableInRun(tile.type)) appendHoverTile(tile, 'hover-cell run');
+    if (tile && (isClickableInRun(tile.type) || blockOfTile(tile.id))) appendHoverTile(tile, 'hover-cell run');
     return;
   }
 
@@ -685,6 +736,7 @@ const renderProps = () => {
         if (event.key === 'Enter') input.blur();
       });
       label.append(span, input);
+      if (tile.type === 'contact') return contactWithBlockField(tile, label);
       if (!TrackCatalog.canInvert(tile.type)) return label;
 
       // Drive wired the other way round: swap green and red for this address.
@@ -924,6 +976,118 @@ const setAddress = (tileId, slot, input) => {
   setStatus(value === null ? tr('lay.addrCleared', { label: I18n.label(tile.type) }) : tr('lay.addrSaved', { name: describe(tile) }), 'ok');
 };
 
+// Contact track: may start a block, towards the right or left end of its symbol.
+const contactWithBlockField = (tile, addressField) => {
+  const group = document.createElement('span');
+  group.className = 'props-group';
+  const field = document.createElement('label');
+  field.className = 'props-field';
+  field.title = tr('lay.blockHint');
+  const span = document.createElement('span');
+  span.textContent = tr('lay.blockStart');
+  const select = document.createElement('select');
+  [['', 'lay.blockNone'], ['right', 'lay.blockRight'], ['left', 'lay.blockLeft']].forEach(([value, key]) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = tr(key);
+    select.append(option);
+  });
+  select.value = tile.block || '';
+  select.addEventListener('change', () => setBlockStart(tile.id, select.value));
+  field.append(span, select);
+  group.append(addressField, field);
+  return group;
+};
+
+const setBlockStart = (tileId, direction) => {
+  const tile = tileById(tileId);
+  if (!tile) return;
+  if (TrackCatalog.BLOCK_DIRECTIONS.includes(direction)) tile.block = direction;
+  else delete tile.block;
+  scheduleSave();
+  renderTiles();
+  setStatus(tr(tile.block ? 'lay.blockSaved' : 'lay.blockRemoved', { name: describe(tile) }), 'ok');
+};
+
+/* ---------- Block menu (run mode) ---------- */
+
+const blockMenu = $('blockMenu');
+const closeBlockMenu = () => {
+  if (blockMenu) blockMenu.hidden = true;
+};
+
+const setBlock = async (block, occupied, loco) => {
+  closeBlockMenu();
+  try {
+    const response = await fetch('/api/blocks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: block.id, occupied, loco })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || tr('lay.rejected'));
+    state.blocks = data.blocks;
+    render();
+    setStatus(occupied ? (loco ? tr('blk.occupiedBy', { loco }) : tr('blk.occupied')) : tr('blk.freed'), 'ok');
+  } catch (error) {
+    setStatus(error.message, 'error');
+  }
+};
+
+// Clicked a track in a block: occupy it with a locomotive, as unknown train, or free it.
+const openBlockMenu = async (block, event) => {
+  if (!blockMenu) return;
+  const start = tileById(block.start);
+  const contact = start && start.addresses && start.addresses[0];
+  const current = state.blocks[block.id];
+
+  const title = document.createElement('strong');
+  title.textContent = tr('blk.title', { contact: contact || '?', where: start ? where(start) : '' });
+  const status = document.createElement('span');
+  status.className = 'block-menu-status';
+  status.textContent = current ? (current.loco ? tr('blk.occupiedBy', { loco: current.loco }) : tr('blk.occupied')) : tr('blk.isFree');
+
+  const button = (text, onClick, className = '') => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `block-menu-item ${className}`.trim();
+    b.textContent = text;
+    b.addEventListener('click', onClick);
+    return b;
+  };
+
+  let locos = [];
+  try {
+    const response = await fetch('/api/controllers');
+    const data = await response.json();
+    locos = [...new Set((data.controllers || []).map((c) => (c.name || '').trim()).filter(Boolean))];
+  } catch (_error) {
+    // No list: the menu still offers unknown train and free.
+  }
+
+  const items = locos.map((name) =>
+    button(name, () => setBlock(block, true, name), current && current.loco === name ? 'current' : '')
+  );
+  items.push(button(tr('blk.unknown'), () => setBlock(block, true, null)));
+  if (current) items.push(button(tr('blk.free'), () => setBlock(block, false, null), 'danger-text'));
+
+  blockMenu.replaceChildren(title, status, ...items);
+  blockMenu.hidden = false;
+  // Next to the pointer, kept inside the window.
+  const rect = blockMenu.getBoundingClientRect();
+  blockMenu.style.left = `${Math.max(8, Math.min(event.clientX + 8, window.innerWidth - rect.width - 8))}px`;
+  blockMenu.style.top = `${Math.max(8, Math.min(event.clientY + 8, window.innerHeight - rect.height - 8))}px`;
+  const first = blockMenu.querySelector('button');
+  if (first) first.focus();
+};
+
+document.addEventListener('pointerdown', (event) => {
+  if (blockMenu && !blockMenu.hidden && !blockMenu.contains(event.target) && !ui.board.contains(event.target)) closeBlockMenu();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeBlockMenu();
+});
+
 const setInvert = (tileId, slot, inverted) => {
   const tile = tileById(tileId);
   if (!tile) return;
@@ -947,6 +1111,7 @@ const setTool = (tool) => {
 };
 
 const setMode = (mode) => {
+  closeBlockMenu();
   state.mode = mode === 'run' ? 'run' : 'edit';
   state.selection.clear();
   state.drag = null;
@@ -1053,6 +1218,10 @@ const pollLive = async () => {
     const live = await response.json();
     let changed = JSON.stringify(live.sensors) !== JSON.stringify(state.sensors);
     state.sensors = live.sensors;
+    if (JSON.stringify(live.blocks || {}) !== JSON.stringify(state.blocks)) {
+      state.blocks = live.blocks || {};
+      changed = true;
+    }
     if (applyS88(live)) changed = true;
     state.tiles.forEach((tile) => {
       const next = live.states[tile.id];
@@ -1164,7 +1333,10 @@ ui.board.addEventListener('pointerdown', (event) => {
   const tile = tileAt(cell.x, cell.y);
 
   if (state.mode === 'run') {
+    closeBlockMenu();
     if (tile && isClickableInRun(tile.type)) operate(tile);
+    else if (tile && blockOfTile(tile.id)) openBlockMenu(blockOfTile(tile.id), event);
+    else if (tile) setStatus(tr('blk.none'));
     return;
   }
 

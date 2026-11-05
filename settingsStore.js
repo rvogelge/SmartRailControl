@@ -104,6 +104,10 @@ const sanitizeLayout = (input) => {
     if (TrackCatalog.addressSlots(tile.type).length > 0) {
       sanitized.addresses = sanitizeAddresses(tile.type, tile.addresses);
     }
+    // Contact track that starts a block, with the block direction (arrow in the symbol).
+    if (tile.type === 'contact' && TrackCatalog.BLOCK_DIRECTIONS.includes(tile.block)) {
+      sanitized.block = tile.block;
+    }
     // Inverted drives (green and red swapped): kept only when at least one is inverted.
     if (TrackCatalog.canInvert(tile.type) && Array.isArray(tile.invert) && tile.invert.some(Boolean)) {
       sanitized.invert = TrackCatalog.addressSlots(tile.type).map((_label, i) => Boolean(tile.invert[i]));
@@ -266,7 +270,9 @@ class SettingsStore {
       activeControllerId,
       layout,
       rules,
-      decoderNotes: sanitizeDecoderNotes(raw.decoderNotes)
+      decoderNotes: sanitizeDecoderNotes(raw.decoderNotes),
+      // Occupied blocks: { start contact id: { loco, since } } (checked by BlockTracker).
+      blocks: raw.blocks && typeof raw.blocks === 'object' && !Array.isArray(raw.blocks) ? raw.blocks : {}
     };
   }
 
@@ -362,6 +368,15 @@ class SettingsStore {
     this.data.layout = sanitized;
     this.save();
     return this.getLayout();
+  }
+
+  getBlocks() {
+    return JSON.parse(JSON.stringify(this.data.blocks || {}));
+  }
+
+  setBlocks(blocks) {
+    this.data.blocks = JSON.parse(JSON.stringify(blocks || {}));
+    this.save();
   }
 
   getDecoderNotes() {

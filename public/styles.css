@@ -758,6 +758,80 @@ body[data-mode='run'] .zoom-group {
   fill: transparent;
 }
 
+/* Occupied block: light red track (selection and active contacts still win) */
+.tile.block-occupied .tile-bg {
+  fill: rgba(255, 93, 93, 0.1);
+}
+
+.tile.block-occupied .rail {
+  stroke: #ff9c9c;
+}
+
+.tile.block-occupied .rail.inactive {
+  stroke: #b06a6a;
+}
+
+.track .block-arrow {
+  fill: #0b1117;
+}
+
+.block-label rect {
+  fill: rgba(11, 17, 23, 0.9);
+  stroke: #ff9c9c;
+  stroke-width: 3;
+}
+
+.block-label text {
+  fill: #ffd2d2;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.block-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 16px));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-size: 0.88rem;
+}
+
+.block-menu[hidden] {
+  display: none;
+}
+
+.block-menu-status {
+  margin-bottom: 4px;
+  color: var(--muted);
+}
+
+.block-menu-item {
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.block-menu-item:hover,
+.block-menu-item:focus-visible {
+  border-color: var(--accent);
+}
+
+.block-menu-item.current {
+  border-color: #ff9c9c;
+}
+
 .tile.selected .tile-bg {
   fill: rgba(79, 179, 255, 0.12);
   stroke: var(--accent);

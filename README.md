@@ -12,6 +12,8 @@ SmartRailControl is a small Raspberry Pi web app for controlling a model railway
 - Track layout editor to draw a simple track plan on a square grid
 - Decoder test page (menu → *Decoder test*): switch any accessory address red/green to find out which turnout, signal or uncoupler it drives, see which layout element uses it, and keep a note per address. Accessory decoders only receive commands, so the Intellibox cannot list which ones are connected.
 - Logic rules editor in a separate window ("if contact 5 turns on, set turnout 12 to diverging"), run by the server
+- Block signalling: a contact track can start a block (edit mode → *Block start* → right / left; an arrow in the symbol shows the direction). A block runs in arrow direction over all turnout routes up to the next block-start contact. When the contact fires, its block turns light red as occupied, the block the train came from becomes free, and the locomotive name moves along; it is shown on the middle straight track of the block. In run mode, click a track of a block to occupy it with a locomotive, as unknown train, or to free it.
+- Actor decoder addresses (turnouts, signals, uncouplers) can be marked *inverted* when a drive switches the opposite way
 - Works on phones and desktop browsers on the local network
 
 ## Requirements

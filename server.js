@@ -8,6 +8,7 @@ const DataLocation = require('./dataLocation');
 const TrackCatalog = require('./public/trackCatalog');
 const RuleEngine = require('./ruleEngine');
 const FeedbackPoller = require('./feedbackPoller');
+const BlockTracker = require('./blockTracker');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -109,6 +110,7 @@ app.post('/api/storage', (req, res) => {
     settingsStore.switchFile(target.file, { useExisting: mode === 'use' });
     DataLocation.remember(target.dir);
     console.log(`Data file moved: ${previous} → ${target.file} (${mode})`);
+    blocks.reload(); // occupancy of the blocks in that data
 
     if (mode === 'use') {
       // Other data: take over its interface settings and contact states.
@@ -144,6 +146,7 @@ app.put('/api/layout', (req, res) => {
   try {
     const layout = settingsStore.setLayout(req.body || {});
     syncContactsFromFeedback();
+    blocks.prune();
     return res.json(layout);
   } catch (error) {
     return res.status(400).json({ error: error.message });
@@ -196,6 +199,33 @@ const ruleEngine = new RuleEngine({
   operate: operateTile
 });
 
+/* ---------- Block signalling ---------- */
+
+const blocks = new BlockTracker({
+  getTiles: () => settingsStore.getLayout().tiles,
+  load: () => settingsStore.getBlocks(),
+  save: (state) => settingsStore.setBlocks(state)
+});
+
+// A contact track switched on (s88 or pressed by hand): occupy its block, if it starts one.
+const blockContactOn = (tileId) => {
+  const result = blocks.contactOn(tileId);
+  if (result) {
+    const freed = result.freed.length ? `, freed ${result.freed.length} block(s) behind` : '';
+    console.log(`[blocks] block ${result.block} occupied${result.loco ? ` by ${result.loco}` : ''}${freed}`);
+  }
+};
+
+// Run mode: occupy a block (optionally with a loco name) or free it, by hand.
+app.post('/api/blocks', (req, res) => {
+  const { id, occupied, loco } = req.body || {};
+  try {
+    return res.json({ ok: true, blocks: blocks.set(String(id || ''), { occupied: Boolean(occupied), loco }) });
+  } catch (error) {
+    return res.status(404).json({ error: error.message });
+  }
+});
+
 /* ---------- s88 feedback ---------- */
 
 const contactTiles = () => settingsStore.getLayout().tiles.filter((t) => t.type === 'contact');
@@ -238,6 +268,7 @@ const feedback = new FeedbackPoller({
       if (initial) {
         ruleEngine.syncSensor(tile.id, on);
       } else {
+        if (on) blockContactOn(tile.id);
         const { fired } = ruleEngine.setSensor(tile.id, on);
         if (fired.length) console.log(`[rules] contact ${contact} ${on ? 'on' : 'off'}: ${fired.length} rule(s) fired`);
       }
@@ -280,10 +311,12 @@ app.post('/api/sensors', (req, res) => {
   try {
     if (pulse) {
       const { changed, fired, pulseMs } = ruleEngine.pulseSensor(String(id || ''));
+      blockContactOn(String(id || ''));
       return res.json({ ok: true, changed, fired, active: true, pulseMs });
     }
     ruleEngine.cancelPulse(String(id || ''));
     const { changed, fired } = ruleEngine.setSensor(String(id || ''), active);
+    if (active && changed) blockContactOn(String(id || ''));
     return res.json({ ok: true, changed, fired, active: Boolean(active) });
   } catch (error) {
     return res.status(404).json({ error: error.message });
@@ -310,6 +343,7 @@ app.get('/api/live', (_req, res) => {
     states,
     ...live,
     feedback: feedback.getStatus(),
+    blocks: blocks.getLive(),
     s88: { events: s88Events, contactsOn: [...contactsOn].sort((a, b) => a - b) }
   });
 });
