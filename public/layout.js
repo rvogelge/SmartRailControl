@@ -125,6 +125,7 @@ const state = {
   flashing: new Set(), // momentary elements briefly highlighted in run mode
   sensors: {}, // contact tracks that are on (occupied): { id: true }
   blocks: {}, // occupied blocks from the server: { start contact id: { loco } }
+  blockNumbers: {}, // { start contact id: number } (B1, B2, …)
   s88: { events: [], contactsOn: [], feedback: null, lastSeq: null, fresh: false }, // s88 monitor (edit mode)
   propsFor: null, // key the properties bar was built for
   zoom: CELL_PX, // on-screen pixels per grid square
@@ -447,14 +448,16 @@ const renderBlockLabels = () => {
     const tile = TrackCatalog.blockLabelTile(block, state.tiles);
     if (!tile) return;
     const [cx, cy] = cellsOf(tile)[0];
-    const width = Math.max(70, 22 + occupied.loco.length * 15);
+    const number = state.blockNumbers[block.id];
+    const text = number ? `B${number} · ${occupied.loco}` : occupied.loco;
+    const width = Math.max(70, 22 + text.length * 15);
     const x = cx * CELL + CELL / 2;
     const y = cy * CELL + CELL / 2;
     const label = svg('g', { class: 'block-label' });
     label.append(svg('rect', { x: x - width / 2, y: y - 17, width, height: 34, rx: 9 }));
-    const text = svg('text', { x, y: y + 9, 'text-anchor': 'middle' });
-    text.textContent = occupied.loco;
-    label.append(text);
+    const caption = svg('text', { x, y: y + 9, 'text-anchor': 'middle' });
+    caption.textContent = text;
+    label.append(caption);
     group.append(label);
   });
   return group;
@@ -1052,7 +1055,8 @@ const openBlockMenu = async (block, event) => {
   const current = state.blocks[block.id];
 
   const title = document.createElement('strong');
-  title.textContent = tr('blk.title', { contact: contact || '?', where: start ? where(start) : '' });
+  const number = state.blockNumbers[block.id];
+  title.textContent = `${number ? `B${number} · ` : ''}${tr('blk.title', { contact: contact || '?', where: start ? where(start) : '' })}`;
   const status = document.createElement('span');
   status.className = 'block-menu-status';
   status.textContent = current ? (current.loco ? tr('blk.occupiedBy', { loco: current.loco }) : tr('blk.occupied')) : tr('blk.isFree');
@@ -1248,6 +1252,10 @@ const pollLive = async () => {
     state.sensors = live.sensors;
     if (JSON.stringify(live.blocks || {}) !== JSON.stringify(state.blocks)) {
       state.blocks = live.blocks || {};
+      changed = true;
+    }
+    if (JSON.stringify(live.blockNumbers || {}) !== JSON.stringify(state.blockNumbers)) {
+      state.blockNumbers = live.blockNumbers || {};
       changed = true;
     }
     if (applyS88(live)) changed = true;

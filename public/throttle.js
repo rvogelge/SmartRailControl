@@ -9,7 +9,7 @@ const $ = (id) => document.getElementById(id);
 const FUNCTION_COUNT = 4;
 const MAX_SPEED = 126;
 const POSITION_KEY = 'smartrailcontrol.throttlePosition';
-const REFRESH_MS = 5000;
+const REFRESH_MS = 2000;
 
 const el = {
   window: $('throttleWindow'),
@@ -282,15 +282,18 @@ el.select.addEventListener('change', () => {
   setMessage(t('ctl.selected', { name: active().name }));
 });
 
-// Locomotives added, renamed or removed on the Locomotives page (or in another browser):
-// take over the list; this window keeps the driving state it has for each locomotive.
+// Locomotives added, renamed or removed on the Locomotives page (or in another browser),
+// and locomotives stopped by automated operation: take over the server's list and driving
+// state, except for a change of this window that is still being saved (or the slider
+// being dragged).
 const refresh = async () => {
   try {
     const data = await api('/api/controllers');
     const local = new Map(state.controllers.map((c) => [c.id, c]));
+    const busy = (id) => saveTimers.has(id) || (document.activeElement === el.speed && id === state.activeId);
     const next = data.controllers.map((c) => {
       const mine = local.get(c.id);
-      return normalize(mine ? { ...c, speed: mine.speed, direction: mine.direction, functions: mine.functions, light: mine.light } : c);
+      return normalize(mine && busy(c.id) ? { ...c, speed: mine.speed, direction: mine.direction, functions: mine.functions, light: mine.light } : c);
     });
     if (JSON.stringify(next) === JSON.stringify(state.controllers)) return;
     state.controllers = next;

@@ -9,6 +9,7 @@ const TrackCatalog = require('./public/trackCatalog');
 const RuleEngine = require('./ruleEngine');
 const FeedbackPoller = require('./feedbackPoller');
 const BlockTracker = require('./blockTracker');
+const RouteRunner = require('./routeRunner');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -150,8 +151,13 @@ app.put('/api/controllers', (req, res) => {
     const after = new Map(result.controllers.map((c) => [c.id, c]));
     before.forEach((old) => {
       const now = after.get(old.id);
-      if (!now) blocks.renameLoco(old.name, null);
-      else if (now.name !== old.name) blocks.renameLoco(old.name, now.name);
+      if (!now) {
+        blocks.renameLoco(old.name, null);
+        routeRunner.renameLoco(old.name, null);
+      } else if (now.name !== old.name) {
+        blocks.renameLoco(old.name, now.name);
+        routeRunner.renameLoco(old.name, now.name);
+      }
     });
     return res.json(result);
   } catch (error) {
@@ -186,6 +192,7 @@ app.put('/api/layout', (req, res) => {
     const layout = settingsStore.setLayout(req.body || {});
     syncContactsFromFeedback();
     blocks.prune();
+    routeRunner.evaluate();
     return res.json(layout);
   } catch (error) {
     return res.status(400).json({ error: error.message });
@@ -259,6 +266,7 @@ const blocks = new BlockTracker({
 // A contact track switched on (s88 or pressed by hand): occupy its block, if it starts one.
 const blockContactOn = (tileId) => {
   const result = blocks.contactOn(tileId);
+  if (result) routeRunner.evaluate();
   if (result) {
     const freed = result.freed.length ? `, freed ${result.freed.length} block(s) behind` : '';
     console.log(`[blocks] block ${result.block} occupied${result.loco ? ` by ${result.loco}` : ''}${freed}`);
@@ -272,13 +280,122 @@ const blockContactOn = (tileId) => {
 app.post('/api/blocks', (req, res) => {
   const { id, occupied, loco } = req.body || {};
   try {
-    return res.json({ ok: true, blocks: blocks.set(String(id || ''), { occupied: Boolean(occupied), loco }) });
+    const live = blocks.set(String(id || ''), { occupied: Boolean(occupied), loco });
+    routeRunner.evaluate();
+    return res.json({ ok: true, blocks: live });
   } catch (error) {
     if (error.code === 'locoInBlock') {
       return res.status(409).json({ error: error.message, code: error.code, block: error.block, loco: error.loco });
     }
     return res.status(404).json({ error: error.message });
   }
+});
+
+// Stable block numbers (B1, B2, …): a new block gets the next free number, numbers of
+// removed blocks are dropped.
+const blockNumbers = () => {
+  const saved = settingsStore.getBlockNumbers();
+  const ids = blocks.blocks().map((b) => b.id);
+  const numbers = Object.fromEntries(Object.entries(saved).filter(([id]) => ids.includes(id)));
+  let highest = Math.max(0, ...Object.values(numbers));
+  ids.forEach((id) => {
+    if (!numbers[id]) {
+      highest += 1;
+      numbers[id] = highest;
+    }
+  });
+  if (JSON.stringify(numbers) !== JSON.stringify(saved)) settingsStore.setBlockNumbers(numbers);
+  return numbers;
+};
+
+/* ---------- Fahrstraßen (routes) and automated operation ---------- */
+
+// Stops a locomotive (speed 0, direction and light kept) and saves that for the throttle.
+const stopLoco = (name) => {
+  const controller = settingsStore.getControllers().controllers.find((c) => c.name === name);
+  if (!controller) return;
+  try {
+    serialService.sendLocomotiveCommand({ decoderId: controller.decoderId, speed: 0, direction: controller.direction, stop: true, light: controller.light });
+  } catch (error) {
+    console.error(`[routes] could not stop ${name}: ${error.message}`);
+  }
+  locoSpeeds.set(controller.decoderId, 0);
+  settingsStore.updateControllerState(controller.id, { speed: 0 });
+};
+
+const routeRunner = new RouteRunner({
+  tracker: blocks,
+  getTiles: () => settingsStore.getLayout().tiles,
+  getRoutes: () => settingsStore.getRoutes(),
+  setTurnout: async (id, state) => {
+    const tile = settingsStore.getTile(id);
+    if (!tile) return;
+    const result = await operateTile(tile, state);
+    console.log(`[routes] turnout ${id} → ${state}${result.sent ? '' : ` (not sent: ${result.error})`}`);
+  },
+  stopLoco,
+  log: (text) => console.log(text)
+});
+
+// Block list page: blocks with number, start contact, occupancy; routes with their
+// connections and runs.
+app.get('/api/blocklist', (_req, res) => {
+  const tiles = settingsStore.getLayout().tiles;
+  const byId = new Map(tiles.map((t) => [t.id, t]));
+  const numbers = blockNumbers();
+  const live = blocks.getLive();
+  const list = blocks
+    .blocks()
+    .map((b) => {
+      const start = byId.get(b.id);
+      return {
+        id: b.id,
+        number: numbers[b.id],
+        contact: (start.addresses && start.addresses[0]) || null,
+        x: start.x,
+        y: start.y,
+        direction: start.block,
+        tracks: b.tiles.length,
+        next: b.next,
+        occupied: Boolean(live[b.id]),
+        loco: live[b.id] ? live[b.id].loco : null
+      };
+    })
+    .sort((a, b) => a.number - b.number);
+  const routes = settingsStore.getRoutes().map((route) => {
+    const pairs = route.blocks.slice(1).map((to, i) => [route.blocks[i], to]);
+    if (route.loop && route.blocks.length > 1) pairs.push([route.blocks[route.blocks.length - 1], route.blocks[0]]);
+    return { ...route, links: pairs.map(([from, to]) => ({ from, to, connected: Boolean(TrackCatalog.findPath(tiles, from, to)) })) };
+  });
+  res.json({ blocks: list, routes, runs: routeRunner.getLive() });
+});
+
+app.put('/api/routes', (req, res) => {
+  try {
+    const routes = settingsStore.setRoutes((req.body || {}).routes);
+    // Runs of routes that are gone end.
+    Object.keys(routeRunner.getLive()).forEach((id) => {
+      if (!routes.some((r) => r.id === id)) routeRunner.stop(id);
+    });
+    routeRunner.evaluate();
+    return res.json({ routes });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/api/routes/:id/start', async (req, res) => {
+  try {
+    await routeRunner.start(req.params.id, String((req.body || {}).loco || ''));
+    return res.json({ ok: true, runs: routeRunner.getLive() });
+  } catch (error) {
+    return res.status(400).json({ error: error.message, code: error.code });
+  }
+});
+
+app.post('/api/routes/:id/stop', (req, res) => {
+  routeRunner.stop(req.params.id);
+  return res.json({ ok: true, runs: routeRunner.getLive() });
 });
 
 /* ---------- s88 feedback ---------- */
@@ -399,6 +516,8 @@ app.get('/api/live', (_req, res) => {
     ...live,
     feedback: feedback.getStatus(),
     blocks: blocks.getLive(),
+    blockNumbers: blockNumbers(),
+    runs: routeRunner.getLive(),
     s88: { events: s88Events, contactsOn: [...contactsOn].sort((a, b) => a - b) }
   });
 });

@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test test/serialService.test.js test/settingsStore.test.js test/ruleEngine.test.js test/feedback.test.js test/dataLocation.test.js test/blocks.test.js"
+    "test": "node --test test/serialService.test.js test/settingsStore.test.js test/ruleEngine.test.js test/feedback.test.js test/dataLocation.test.js test/blocks.test.js test/routes.test.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

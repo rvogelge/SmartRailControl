@@ -191,6 +191,36 @@ const createController = (overrides = {}) => ({
   ...overrides
 });
 
+// Fahrstraßen (routes): ordered blocks for automated operation.
+const MAX_ROUTES = 50;
+const sanitizeRoutes = (input) => {
+  const list = Array.isArray(input) ? input.slice(0, MAX_ROUTES) : [];
+  const ids = new Set();
+  return list.map((route, index) => {
+    if (!route || typeof route !== 'object') throw new Error('Invalid route.');
+    let id = typeof route.id === 'string' && /^[\w-]{1,64}$/.test(route.id) ? route.id : crypto.randomUUID();
+    if (ids.has(id)) id = crypto.randomUUID();
+    ids.add(id);
+    const blocks = (Array.isArray(route.blocks) ? route.blocks : [])
+      .filter((b) => typeof b === 'string' && /^[\w-]{1,64}$/.test(b))
+      .slice(0, 100);
+    return {
+      id,
+      name: String(route.name || '').trim().slice(0, 40) || `Route ${index + 1}`,
+      blocks,
+      loop: Boolean(route.loop)
+    };
+  });
+};
+
+// Stable block numbers: { start contact id: number }.
+const sanitizeBlockNumbers = (input) => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+  return Object.fromEntries(
+    Object.entries(input).filter(([id, n]) => /^[\w-]{1,64}$/.test(id) && Number.isInteger(n) && n > 0)
+  );
+};
+
 const sanitizeController = (input) => {
   if (!input || typeof input !== 'object') {
     throw new Error('Invalid controller entry.');
@@ -279,7 +309,16 @@ class SettingsStore {
       rules,
       decoderNotes: sanitizeDecoderNotes(raw.decoderNotes),
       // Occupied blocks: { start contact id: { loco, since } } (checked by BlockTracker).
-      blocks: raw.blocks && typeof raw.blocks === 'object' && !Array.isArray(raw.blocks) ? raw.blocks : {}
+      blocks: raw.blocks && typeof raw.blocks === 'object' && !Array.isArray(raw.blocks) ? raw.blocks : {},
+      blockNumbers: sanitizeBlockNumbers(raw.blockNumbers),
+      routes: (() => {
+        try {
+          return sanitizeRoutes(raw.routes);
+        } catch (error) {
+          console.error(`Ignoring invalid saved routes: ${error.message}`);
+          return [];
+        }
+      })()
     };
   }
 
@@ -399,6 +438,25 @@ class SettingsStore {
     this.data.layout = sanitized;
     this.save();
     return this.getLayout();
+  }
+
+  getBlockNumbers() {
+    return { ...this.data.blockNumbers };
+  }
+
+  setBlockNumbers(numbers) {
+    this.data.blockNumbers = sanitizeBlockNumbers(numbers);
+    this.save();
+  }
+
+  getRoutes() {
+    return JSON.parse(JSON.stringify(this.data.routes || []));
+  }
+
+  setRoutes(routes) {
+    this.data.routes = sanitizeRoutes(routes);
+    this.save();
+    return this.getRoutes();
   }
 
   getBlocks() {

@@ -2267,6 +2267,212 @@ body:not([data-mode='run']) .run-only {
   }
 }
 
+/* Blocks page: block list and Fahrstraßen */
+.blocks-main {
+  display: grid;
+  gap: 20px;
+}
+
+.block-row {
+  display: grid;
+  grid-template-columns: 64px minmax(180px, 1.4fr) 70px minmax(100px, 1fr) minmax(150px, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+
+#blockRows > .block-row:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.block-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.block-tracks,
+.block-next {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.block-status.free {
+  color: var(--ok);
+}
+
+.block-status.occupied {
+  color: #ff9c9c;
+}
+
+.block-empty {
+  display: block;
+  margin: 0;
+  padding: 12px;
+}
+
+.route-list {
+  display: grid;
+  gap: 12px;
+}
+
+.route {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.route-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.route-name {
+  flex: 1 1 200px;
+  max-width: 320px;
+  padding: 7px 9px;
+  font-weight: 600;
+}
+
+.route-loop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.route-head .danger-text {
+  margin-left: auto;
+}
+
+.route-seq {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.route-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-3);
+}
+
+.route-chip strong {
+  padding: 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.route-chip.missing {
+  border-color: var(--warn);
+}
+
+.chip-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.chip-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.chip-btn:disabled {
+  visibility: hidden;
+}
+
+.route-arrow {
+  color: var(--muted);
+}
+
+.route-add {
+  width: auto;
+  padding: 5px 8px;
+  font-size: 0.85rem;
+}
+
+.route-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+}
+
+.route-check.warn {
+  color: var(--warn);
+}
+
+.route-check.ok {
+  color: var(--ok);
+}
+
+.route-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.route-loco {
+  width: auto;
+  min-width: 140px;
+  padding: 6px 8px;
+}
+
+.route-status {
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.route-status.running,
+.route-status.free {
+  color: var(--ok);
+}
+
+.route-status.waiting,
+.route-status.finished {
+  color: var(--warn);
+}
+
+.route-status.leftRoute,
+.route-status.notInBlock,
+.route-status.noConnection {
+  color: var(--danger);
+}
+
+@media (max-width: 760px) {
+  .block-row {
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 4px 12px;
+  }
+
+  .block-tracks {
+    display: none;
+  }
+
+  .block-next,
+  .block-status {
+    grid-column: 2;
+  }
+}
+
 /* Locomotives page (shares the decoder test page frame) */
 .loco-row {
   display: grid;
