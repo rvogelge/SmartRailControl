@@ -25,10 +25,12 @@ test('track ends follow the rotation of the element', () => {
   assert.deepEqual(TrackCatalog.tileEnd({ type: 'curve-r2', x: 0, y: 0, rotation: 0 }, 'S2'), { name: 'S2', x: 3, y: 4, dir: 'S', key: '3,4,S' });
 });
 
-test('a block runs in its arrow direction over all turnout routes up to the next block start', () => {
+test('a block runs in its arrow direction up to the next block start or turnout', () => {
   const blocks = TrackCatalog.findBlocks(line());
   const byId = Object.fromEntries(blocks.map((b) => [b.id, b]));
-  assert.deepEqual(byId.c1.tiles, ['c1', 's1', 't1', 's2', 'd1']);
+  // Ends before turnout t1; s2 and d1 behind it belong to no block.
+  assert.deepEqual(byId.c1.tiles, ['c1', 's1']);
+  // A train can still reach c2 over the turnout.
   assert.deepEqual(byId.c1.next, ['c2']);
   // c2 → stops at c3 (a block start, whatever its direction)
   assert.deepEqual(byId.c2.tiles, ['c2', 's3']);
@@ -41,15 +43,27 @@ test('a block runs in its arrow direction over all turnout routes up to the next
 test('contacts that are not block starts are part of the block', () => {
   const tiles = line();
   tiles[4].block = undefined; // c2 is a plain contact now
-  const c1 = TrackCatalog.findBlocks(tiles).find((b) => b.id === 'c1');
-  assert.deepEqual(c1.tiles, ['c1', 's1', 't1', 's2', 'd1', 'c2', 's3']);
-  assert.deepEqual(c1.next, ['c3']);
+  const c3 = TrackCatalog.findBlocks(tiles).find((b) => b.id === 'c3');
+  assert.deepEqual(c3.tiles, ['c3', 's3', 'c2', 's2']); // stops at turnout t1
+  assert.deepEqual(TrackCatalog.findBlocks(tiles).find((b) => b.id === 'c1').next, ['c3']);
+});
+
+test('turnouts end blocks over every route, crossings do not', () => {
+  assert.equal(TrackCatalog.isTurnout('turnout-left'), true);
+  assert.equal(TrackCatalog.isTurnout('turnout-3way'), true);
+  assert.equal(TrackCatalog.isTurnout('double-slip'), true);
+  assert.equal(TrackCatalog.isTurnout('crossing'), false);
+  assert.equal(TrackCatalog.isTurnout('signal'), false);
+  // Block c2 pointing left runs back to the turnout's straight end, not into it.
+  const tiles = line();
+  tiles[4].block = 'left';
+  assert.deepEqual(TrackCatalog.findBlocks(tiles).find((b) => b.id === 'c2').tiles, ['c2', 's2']);
 });
 
 test('the loco name sits on the middle straight track of the block', () => {
   const tiles = line();
   const c1 = TrackCatalog.findBlocks(tiles).find((b) => b.id === 'c1');
-  assert.equal(TrackCatalog.blockLabelTile(c1, tiles).id, 's1'); // straights: s1, s2
+  assert.equal(TrackCatalog.blockLabelTile(c1, tiles).id, 's1');
 });
 
 test('a train occupies blocks one after another and takes its loco along', () => {

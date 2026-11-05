@@ -191,13 +191,17 @@
   const linksOf = (type) => (TYPES[type] && TYPES[type].links) || [];
 
   // Block start: a contact track with `block: 'right' | 'left'` (the arrow in its symbol,
-  // at rotation 0). Entering that contact's end, the block covers it and everything
-  // behind it in the arrow direction up to the next block-start contact.
+  // at rotation 0). The block covers the contact and the track behind it in arrow
+  // direction up to the next block-start contact or turnout (the turnout is not part of
+  // any block). Past turnouts the search goes on, to find the blocks a train can reach.
   const BLOCK_DIRECTIONS = ['right', 'left'];
   const isBlockStart = (tile) => tile.type === 'contact' && BLOCK_DIRECTIONS.includes(tile.block);
+  // Turnouts end blocks: switchable track with more than one route.
+  const isTurnout = (type) => Boolean(TYPES[type] && TYPES[type].states && linksOf(type).length > 1);
 
   // Every block of the layout: [{ id (= start contact id), start, tiles: [ids in track
-  // order], next: [ids of the block-start contacts it runs into] }]. Turnouts: all routes.
+  // order], next: [ids of the block-start contacts a train can reach from it, also over
+  // turnouts and track outside blocks] }]. Turnouts: all routes.
   const findBlocks = (tiles) => {
     const ends = new Map(); // "x,y,dir" -> [{ tile, name }]
     tiles.forEach((tile) => {
@@ -215,9 +219,10 @@
       const seen = new Set([start.id]);
       const next = new Set();
       const visited = new Set();
-      const queue = [tileEnd(start, start.block === 'left' ? 'W' : 'E')];
+      // [track end left behind, still inside the block?]
+      const queue = [[tileEnd(start, start.block === 'left' ? 'W' : 'E'), true]];
       while (queue.length) {
-        const exit = queue.shift();
+        const [exit, inBlock] = queue.shift();
         meeting(exit).forEach(({ tile, name }) => {
           if (isBlockStart(tile)) {
             if (tile.id !== start.id) next.add(tile.id);
@@ -225,13 +230,14 @@
           }
           if (visited.has(`${tile.id}:${name}`)) return;
           visited.add(`${tile.id}:${name}`);
-          if (!seen.has(tile.id)) {
+          const stillIn = inBlock && !isTurnout(tile.type);
+          if (stillIn && !seen.has(tile.id)) {
             seen.add(tile.id);
             order.push(tile.id);
           }
           linksOf(tile.type).forEach(([a, b]) => {
             const other = a === name ? b : b === name ? a : undefined;
-            if (other) queue.push(tileEnd(tile, other));
+            if (other) queue.push([tileEnd(tile, other), stillIn]);
           });
         });
       }
@@ -288,6 +294,7 @@
     commandsForTile,
     BLOCK_DIRECTIONS,
     isBlockStart,
+    isTurnout,
     findBlocks,
     blockLabelTile,
     tileEnd,
