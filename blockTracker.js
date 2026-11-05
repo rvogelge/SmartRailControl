@@ -8,10 +8,11 @@
 // Consistency:
 // - A locomotive is in one block at most: assigning it to another block by hand is
 //   refused until its block is freed.
-// - Where the train came from: an occupied block leading into the contact. When several
-//   do (blocks merging over turnouts), only the one whose route the turnouts are set to
-//   counts. If that still leaves no single block, none is freed and the new block is
-//   occupied by an unknown train.
+// - Where the train came from: of the occupied blocks leading into the contact (over any
+//   turnout route), the one whose locomotive is running (speed > 0); turnout positions do
+//   not matter. A single block with an unknown train counts too (no speed to check). If
+//   that leaves no single block, none is freed and the new block is occupied by an
+//   unknown train.
 //
 // Blocks can also be set and freed by hand. Occupancy is saved with the settings.
 
@@ -26,8 +27,10 @@ const cleanLoco = (loco) => {
 
 class BlockTracker {
   // getTiles(): layout tiles · load(): saved { id: { loco } } · save(state)
-  constructor({ getTiles, load = () => ({}), save = () => {} }) {
+  // getLocoSpeed(name): current speed of a locomotive, or null when unknown
+  constructor({ getTiles, load = () => ({}), save = () => {}, getLocoSpeed = () => null }) {
     this.getTiles = getTiles;
+    this.getLocoSpeed = getLocoSpeed;
     this.loadState = load;
     this.saveState = save;
     this.reload();
@@ -67,10 +70,11 @@ class BlockTracker {
   // Returns { from, ambiguous: [ids] }.
   sourceOf(block, blocks) {
     const candidates = blocks.filter((b) => b.id !== block.id && b.next.includes(block.id) && this.occupied.has(b.id));
-    if (candidates.length <= 1) return { from: candidates[0] || null, ambiguous: [] };
-    const routed = candidates.filter((b) => b.nextSet.includes(block.id));
-    if (routed.length === 1) return { from: routed[0], ambiguous: [] };
-    return { from: null, ambiguous: (routed.length ? routed : candidates).map((b) => b.id) };
+    const locoOf = (b) => this.occupied.get(b.id).loco;
+    const moving = candidates.filter((b) => locoOf(b) && Number(this.getLocoSpeed(locoOf(b))) > 0);
+    if (moving.length === 1) return { from: moving[0], ambiguous: [] };
+    if (moving.length === 0 && candidates.length === 1 && !locoOf(candidates[0])) return { from: candidates[0], ambiguous: [] };
+    return { from: null, ambiguous: (moving.length ? moving : candidates).map((b) => b.id) };
   }
 
   // A contact track switched on. Returns { block, loco, freed: [ids], ambiguous: [ids] }

@@ -201,10 +201,20 @@ const ruleEngine = new RuleEngine({
 
 /* ---------- Block signalling ---------- */
 
+// Last speed sent to each decoder (0 after stop / emergency stop). Before the first
+// command after a restart the speed saved with the locomotive is used.
+const locoSpeeds = new Map(); // decoder id -> speed
+const locoSpeed = (name) => {
+  const controller = settingsStore.getControllers().controllers.find((c) => c.name === name);
+  if (!controller) return null;
+  return locoSpeeds.has(controller.decoderId) ? locoSpeeds.get(controller.decoderId) : Number(controller.speed) || 0;
+};
+
 const blocks = new BlockTracker({
   getTiles: () => settingsStore.getLayout().tiles,
   load: () => settingsStore.getBlocks(),
-  save: (state) => settingsStore.setBlocks(state)
+  save: (state) => settingsStore.setBlocks(state),
+  getLocoSpeed: locoSpeed
 });
 
 // A contact track switched on (s88 or pressed by hand): occupy its block, if it starts one.
@@ -214,7 +224,7 @@ const blockContactOn = (tileId) => {
     const freed = result.freed.length ? `, freed ${result.freed.length} block(s) behind` : '';
     console.log(`[blocks] block ${result.block} occupied${result.loco ? ` by ${result.loco}` : ''}${freed}`);
     if (result.ambiguous.length) {
-      console.log(`[blocks] ${result.ambiguous.length} occupied blocks lead into block ${result.block} and the turnouts do not tell which one the train came from: none freed`);
+      console.log(`[blocks] ${result.ambiguous.length} occupied block(s) lead into block ${result.block}, but not exactly one has a running locomotive: none freed`);
     }
   }
 };
@@ -385,6 +395,7 @@ app.post('/api/locomotive/control', (req, res) => {
       stop,
       emergency
     });
+    locoSpeeds.set(decoderId, stop || emergency ? 0 : Math.max(0, Number(speed) || 0));
 
     return res.json({
       ok: result.success,

@@ -19,7 +19,6 @@
   // footprint: { size, cells } — an element occupies an size×size block; `cells`
   // lists the squares (at rotation 0) its track actually uses. Default: 1×1.
   // links: which track ends are joined inside the element (at rotation 0), see TRACK_ENDS.
-  // routes (turnouts): the links each position connects.
   // A train entering at one end may leave at any end it is linked to (all turnout routes).
   const TYPES = {
     straight: { label: 'Straight', links: [['W', 'E']] },
@@ -35,7 +34,6 @@
     'turnout-left': {
       label: 'Turnout left',
       links: [['W', 'E'], ['W', 'NE']],
-      routes: { straight: [['W', 'E']], diverging: [['W', 'NE']] },
       stateLabels: { straight: 'straight', diverging: 'diverging' },
       states: ['straight', 'diverging'],
       addresses: ['Turnout address'],
@@ -44,7 +42,6 @@
     'turnout-right': {
       label: 'Turnout right',
       links: [['W', 'E'], ['W', 'SE']],
-      routes: { straight: [['W', 'E']], diverging: [['W', 'SE']] },
       stateLabels: { straight: 'straight', diverging: 'diverging' },
       states: ['straight', 'diverging'],
       addresses: ['Turnout address'],
@@ -53,7 +50,6 @@
     'turnout-3way': {
       label: 'Three-way turnout',
       links: [['W', 'E'], ['W', 'NE'], ['W', 'SE']],
-      routes: { straight: [['W', 'E']], left: [['W', 'NE']], right: [['W', 'SE']] },
       stateLabels: { straight: 'straight', left: 'left', right: 'right' },
       states: ['straight', 'left', 'right'],
       addresses: ['Drive 1 (left)', 'Drive 2 (right)'],
@@ -67,7 +63,6 @@
     'double-slip': {
       label: 'Crossover switch',
       links: [['W', 'E'], ['SW', 'NE'], ['W', 'NE'], ['SW', 'E']],
-      routes: { straight: [['W', 'E'], ['SW', 'NE']], turn: [['W', 'NE'], ['SW', 'E']] },
       stateLabels: { straight: 'straight', turn: 'turning' },
       states: ['straight', 'turn'],
       // Only two states, so both drives are wired to one decoder output.
@@ -194,12 +189,6 @@
     return { name, x, y, dir, key: `${x},${y},${dir}` };
   };
   const linksOf = (type) => (TYPES[type] && TYPES[type].links) || [];
-  // Links a train can use right now: for turnouts only those of their current position.
-  const setLinksOf = (tile) => {
-    const routes = TYPES[tile.type] && TYPES[tile.type].routes;
-    if (!routes) return linksOf(tile.type);
-    return routes[tile.state] || routes[TYPES[tile.type].states[0]];
-  };
 
   // Block start: a contact track with `block: 'right' | 'left'` (the arrow in its symbol,
   // at rotation 0). The block covers the contact and the track behind it in arrow
@@ -212,8 +201,7 @@
 
   // Every block of the layout: [{ id (= start contact id), start, tiles: [ids in track
   // order], next: [ids of the block-start contacts a train can reach from it, also over
-  // turnouts and track outside blocks], nextSet: [the same, but only over the turnout
-  // positions currently set] }]. The block itself covers all turnout routes.
+  // turnouts and track outside blocks] }]. The block itself covers all turnout routes.
   const findBlocks = (tiles) => {
     const ends = new Map(); // "x,y,dir" -> [{ tile, name }]
     tiles.forEach((tile) => {
@@ -226,8 +214,9 @@
     // The ends that meet a given end: same point, facing the other way.
     const meeting = (end) => ends.get(`${end.x},${end.y},${OPPOSITE[end.dir]}`) || [];
 
-    // Block-start contacts reachable from `exit`, over all routes or only the set ones.
-    const reachable = (exit, linksFor, onTile = () => {}) => {
+    // Block-start contacts reachable from `exit` over all routes; onTile gets the tiles
+    // up to the first turnout (the block itself).
+    const reachable = (exit, onTile) => {
       const found = new Set();
       const visited = new Set();
       // [track end left behind, still inside the block?]
@@ -243,7 +232,7 @@
           visited.add(`${tile.id}:${name}`);
           const stillIn = inBlock && !isTurnout(tile.type);
           if (stillIn) onTile(tile);
-          linksFor(tile).forEach(([a, b]) => {
+          linksOf(tile.type).forEach(([a, b]) => {
             const other = a === name ? b : b === name ? a : undefined;
             if (other) queue.push([tileEnd(tile, other), stillIn]);
           });
@@ -255,13 +244,11 @@
     return tiles.filter(isBlockStart).map((start) => {
       const order = [start.id];
       const exit = tileEnd(start, start.block === 'left' ? 'W' : 'E');
-      const next = reachable(exit, (tile) => linksOf(tile.type), (tile) => {
+      const next = reachable(exit, (tile) => {
         if (!order.includes(tile.id)) order.push(tile.id);
       });
-      const nextSet = reachable(exit, setLinksOf);
       next.delete(start.id);
-      nextSet.delete(start.id);
-      return { id: start.id, start: start.id, tiles: order, next: [...next], nextSet: [...nextSet] };
+      return { id: start.id, start: start.id, tiles: order, next: [...next] };
     });
   };
 
