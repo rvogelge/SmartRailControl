@@ -132,3 +132,55 @@ test('a missing reply times out and the next request still works', async () => {
   assert.deepEqual(await service.readSensorModule(1), [0x00, 0x00]);
   restore();
 });
+
+test('stray bytes from the Intellibox: changes are dropped and no rule-firing change is reported', async () => {
+  const restore = quietLogs();
+  let stray = false;
+  const { service } = fakeIntellibox((packet) => {
+    if (packet[1] === 0x98) return [0x00, 0x00, 0x00];
+    if (packet[1] === 0xc8) return [0x04];
+    if (packet[1] === 0xcb) {
+      // Misread module (contacts 1-13, 16), followed by stray bytes.
+      if (stray) setTimeout(() => service.handleData(Buffer.from([0xa4, 0x40])), 25); // after the reply, within the guard time
+      return [1, 0xff, 0xf9, 0];
+    }
+    return [];
+  });
+  const changes = [];
+  const poller = new FeedbackPoller({ serial: service, getModuleCount: () => 1, onChange: (c) => changes.push(c) });
+  await poller.poll(); // initial read: all free
+  stray = true;
+  await assert.rejects(poller.poll(), /unexpected data/);
+  restore();
+  assert.deepEqual(changes, []);
+});
+
+test('an XEvtSen reply naming a module that is not read is rejected', async () => {
+  const restore = quietLogs();
+  const { service } = fakeIntellibox((packet) => {
+    if (packet[1] === 0x98) return [0x00, 0x00, 0x00];
+    if (packet[1] === 0xc8) return [0x04];
+    if (packet[1] === 0xcb) return [0x07, 0x80, 0x00, 0];
+    return [];
+  });
+  const changes = [];
+  const poller = new FeedbackPoller({ serial: service, getModuleCount: () => 1, onChange: (c) => changes.push(c) });
+  await poller.poll();
+  await assert.rejects(poller.poll(), /out of step/);
+  restore();
+  assert.deepEqual(changes, []);
+});
+
+test('settle waits until the line is quiet, then drops what is left', async () => {
+  const { service } = fakeIntellibox(() => []);
+  service.lastRxAt = Date.now();
+  service.rxBuffer = [0xff];
+  const start = Date.now();
+  await service.settle({ quietMs: 60 });
+  assert.ok(Date.now() - start >= 50);
+  assert.deepEqual(service.rxBuffer, []);
+  service.lastRxAt = Date.now();
+  const noise = setInterval(() => (service.lastRxAt = Date.now()), 10);
+  await assert.rejects(service.settle({ quietMs: 60, maxMs: 150 }), /keeps sending/);
+  clearInterval(noise);
+});

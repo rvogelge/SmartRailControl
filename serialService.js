@@ -22,6 +22,9 @@ const P50_S88_READ = 0x80; // legacy P50: 0x80 + n reads modules 1..n (2 bytes e
 const MAX_S88_MODULES = 31;
 // A reply that does not arrive within this time is given up and the input is resynced.
 const REPLY_TIMEOUT_MS = 1000;
+// settle(): the line counts as quiet once nothing arrived for this long.
+const SETTLE_QUIET_MS = 500;
+const SETTLE_MAX_MS = 5000;
 const P50X_STATUS_OK = 0x00;
 // One-byte replies of the Intellibox to P50X commands.
 const P50X_REPLIES = {
@@ -96,6 +99,8 @@ class SerialService {
     this.lastReceivedPacket = [];
     this.rxBuffer = [];
     this.pendingReplies = []; // FIFO: the Intellibox answers commands in order
+    this.unexpectedBytes = 0; // bytes no command waited for: replies may be out of step
+    this.lastRxAt = 0;
     if (this.disabled) {
       console.log('Serial interface disabled via SMARTRAILCONTROL_SERIAL_DISABLED. Running in layout-only mode.');
       return;
@@ -153,6 +158,7 @@ class SerialService {
 
       this.connection.on('open', () => {
         this.connected = true;
+        this.lastRxAt = Date.now(); // settle() waits a quiet period from here
         console.log(`Connected to serial interface on ${this.portName} @ ${this.baudRate} baud`);
       });
 
@@ -183,10 +189,12 @@ class SerialService {
 
   // Bytes from the Intellibox are matched, in order, to the commands that expect a reply.
   handleData(chunk) {
+    this.lastRxAt = Date.now();
     this.rxBuffer.push(...chunk);
     while (this.rxBuffer.length > 0) {
       const pending = this.pendingReplies[0];
       if (!pending) {
+        this.unexpectedBytes += this.rxBuffer.length;
         this.logCommunication('rx', this.rxBuffer, { unexpected: true });
         this.rxBuffer = [];
         return;
@@ -223,6 +231,18 @@ class SerialService {
       if (pending.timer.unref) pending.timer.unref();
       this.pendingReplies.push(pending);
     });
+  }
+
+  // Waits until the Intellibox has stopped sending (no reply pending, nothing received for
+  // quietMs), then drops whatever is left in the input. After opening the port or after
+  // stray bytes, replies would otherwise be matched to the wrong command.
+  async settle({ quietMs = SETTLE_QUIET_MS, maxMs = SETTLE_MAX_MS } = {}) {
+    const start = Date.now();
+    while (this.pendingReplies.length > 0 || Date.now() - this.lastRxAt < quietMs) {
+      if (Date.now() - start > maxMs) throw new Error('the Intellibox keeps sending unexpected data');
+      await sleep(Math.min(50, quietMs));
+    }
+    this.rxBuffer = [];
   }
 
   failPendingReplies(message) {

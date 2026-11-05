@@ -8,10 +8,19 @@
 // rules). After that the Intellibox is asked for events (XEvent) and only changed
 // modules are fetched (XEvtSen), so short pulses are not missed between polls.
 // Legacy P50: modules 1..n are read on every poll.
+//
+// Stray bytes on the line (e.g. right after the port opened) make replies land on the
+// wrong command, and a misread module looks like many contacts switching at once. So
+// the line is settled before every full read, and changes are only reported when no
+// stray byte arrived while reading or shortly after. Otherwise they are dropped and all
+// modules are read again silently: no rule fires on garbage.
 
 const DEFAULT_POLL_MS = 150;
 const ERROR_RETRY_MS = 2000;
 const P50X_EVENT_SENSOR = 0x04;
+// Stray bytes that belong to a misread reply arrive right behind it: wait this long
+// before trusting changes.
+const DEFAULT_GUARD_MS = 40;
 
 // [byte1, byte2] of module m → [[contact, on], …] for all 16 contacts.
 const decodeModule = (module, [high, low]) =>
@@ -24,11 +33,12 @@ const decodeModule = (module, [high, low]) =>
 class FeedbackPoller {
   // serial: SerialService · getModuleCount(): how many s88 modules to read
   // onChange({ contact, on, initial }) is called for every change.
-  constructor({ serial, getModuleCount, onChange, pollMs = DEFAULT_POLL_MS }) {
+  constructor({ serial, getModuleCount, onChange, pollMs = DEFAULT_POLL_MS, guardMs = DEFAULT_GUARD_MS }) {
     this.serial = serial;
     this.getModuleCount = getModuleCount;
     this.onChange = onChange;
     this.pollMs = pollMs;
+    this.guardMs = guardMs;
     this.contacts = new Map(); // contact number -> on
     this.initialized = false;
     this.moduleCount = 0;
@@ -80,12 +90,16 @@ class FeedbackPoller {
       this.initialized = false;
     }
 
+    if (!this.initialized && this.serial.settle) await this.serial.settle();
+    const strayBefore = this.serial.unexpectedBytes || 0;
+    const updates = []; // [module, bytes, initial]
+
     if (this.serial.protocol === 'P50') {
       const all = await this.serial.readP50Sensors(modules);
-      all.forEach(({ module, bytes }) => this.apply(module, bytes, !this.initialized));
+      all.forEach(({ module, bytes }) => updates.push([module, bytes, !this.initialized]));
     } else if (!this.initialized) {
       for (let module = 1; module <= modules; module += 1) {
-        this.apply(module, await this.serial.readSensorModule(module), true);
+        updates.push([module, await this.serial.readSensorModule(module), true]);
       }
       // Clear events the Intellibox collected before: the full read already covers them.
       const flags = await this.serial.readEvents();
@@ -94,9 +108,18 @@ class FeedbackPoller {
       const flags = await this.serial.readEvents();
       if (flags[0] & P50X_EVENT_SENSOR) {
         const changed = await this.serial.readSensorEvents();
-        changed.forEach(({ module, bytes }) => this.apply(module, bytes, false));
+        if (changed.some(({ module }) => !(module >= 1 && module <= modules))) {
+          throw new Error('s88 reply out of step with the commands (unknown module)');
+        }
+        changed.forEach(({ module, bytes }) => updates.push([module, bytes, false]));
       }
     }
+
+    if (updates.length > 0 && this.guardMs > 0) await new Promise((resolve) => setTimeout(resolve, this.guardMs));
+    if ((this.serial.unexpectedBytes || 0) !== strayBefore) {
+      throw new Error('unexpected data from the Intellibox, s88 changes ignored: reading all modules again');
+    }
+    updates.forEach(([module, bytes, initial]) => this.apply(module, bytes, initial));
 
     if (!this.initialized || this.lastError) {
       console.log(`[s88] reading ${modules} feedback module${modules > 1 ? 's' : ''} (contacts 1–${modules * 16})`);
@@ -139,5 +162,6 @@ class FeedbackPoller {
 
 FeedbackPoller.decodeModule = decodeModule;
 FeedbackPoller.DEFAULT_POLL_MS = DEFAULT_POLL_MS;
+FeedbackPoller.DEFAULT_GUARD_MS = DEFAULT_GUARD_MS;
 
 module.exports = FeedbackPoller;
