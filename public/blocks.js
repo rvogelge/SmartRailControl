@@ -97,8 +97,13 @@ const saveRoutes = (message) => {
   }, 300);
 };
 
+// The page reloads the routes every second, so a rendered control may hold an older copy
+// of its route: always change the current one (looked up by id). `changes` is an object
+// or a function of the current route.
 const change = (route, changes, message) => {
-  Object.assign(route, changes);
+  const current = state.routes.find((r) => r.id === route.id);
+  if (!current) return;
+  Object.assign(current, typeof changes === 'function' ? changes(current) : changes);
   renderRoutes(true);
   saveRoutes(message);
 };
@@ -159,7 +164,9 @@ const renderRoute = (route) => {
   name.maxLength = 40;
   name.value = route.name;
   name.setAttribute('aria-label', tr('routes.name'));
-  name.addEventListener('change', () => change(route, { name: name.value.trim() || route.name }, tr('routes.saved', { name: name.value.trim() })));
+  name.addEventListener('change', () =>
+    change(route, (r) => ({ name: name.value.trim() || r.name }), tr('routes.saved', { name: name.value.trim() || route.name }))
+  );
   name.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') name.blur();
   });
@@ -183,24 +190,28 @@ const renderRoute = (route) => {
     left.type = 'button';
     left.title = tr('routes.moveLeft');
     left.disabled = i === 0;
-    left.addEventListener('click', () => {
-      const blocks = [...route.blocks];
-      [blocks[i - 1], blocks[i]] = [blocks[i], blocks[i - 1]];
-      change(route, { blocks });
-    });
+    left.addEventListener('click', () =>
+      change(route, (r) => {
+        const blocks = [...r.blocks];
+        [blocks[i - 1], blocks[i]] = [blocks[i], blocks[i - 1]];
+        return { blocks };
+      })
+    );
     const right = el('button', 'chip-btn', '▶');
     right.type = 'button';
     right.title = tr('routes.moveRight');
     right.disabled = i === route.blocks.length - 1;
-    right.addEventListener('click', () => {
-      const blocks = [...route.blocks];
-      [blocks[i + 1], blocks[i]] = [blocks[i], blocks[i + 1]];
-      change(route, { blocks });
-    });
+    right.addEventListener('click', () =>
+      change(route, (r) => {
+        const blocks = [...r.blocks];
+        [blocks[i + 1], blocks[i]] = [blocks[i], blocks[i + 1]];
+        return { blocks };
+      })
+    );
     const remove = el('button', 'chip-btn', '×');
     remove.type = 'button';
     remove.title = tr('routes.removeBlock');
-    remove.addEventListener('click', () => change(route, { blocks: route.blocks.filter((_b, j) => j !== i) }));
+    remove.addEventListener('click', () => change(route, (r) => ({ blocks: r.blocks.filter((_b, j) => j !== i) })));
     chip.append(left, el('strong', '', label(id)), right, remove);
     seq.append(chip);
   });
@@ -208,14 +219,16 @@ const renderRoute = (route) => {
 
   const add = el('select', 'route-add');
   add.setAttribute('aria-label', tr('routes.addBlock'));
-  add.append(el('option', '', tr('routes.addBlock')));
+  const placeholder = el('option', '', tr('routes.addBlock'));
+  placeholder.value = '';
+  add.append(placeholder);
   state.blocks.forEach((b) => {
     const option = el('option', '', `B${b.number}`);
     option.value = b.id;
     add.append(option);
   });
   add.addEventListener('change', () => {
-    if (add.value) change(route, { blocks: [...route.blocks, add.value] });
+    if (add.value) change(route, (r) => ({ blocks: [...r.blocks, add.value] }), tr('routes.blockAdded', { block: label(add.value) }));
   });
   seq.append(add);
 
