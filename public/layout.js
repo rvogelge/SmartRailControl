@@ -1025,6 +1025,7 @@ const setBlock = async (block, occupied, loco) => {
       body: JSON.stringify({ id: block.id, occupied, loco })
     });
     const data = await response.json();
+    if (data.code === 'locoInBlock') throw new Error(tr('blk.locoInBlock', { loco: data.loco, where: blockWhere(data.block) }));
     if (!response.ok) throw new Error(data.error || tr('lay.rejected'));
     state.blocks = data.blocks;
     render();
@@ -1034,7 +1035,16 @@ const setBlock = async (block, occupied, loco) => {
   }
 };
 
+// Where a block is: its start contact's number and position.
+const blockWhere = (blockId) => {
+  const start = tileById(blockId);
+  if (!start) return '?';
+  const contact = start.addresses && start.addresses[0];
+  return tr('blk.where', { contact: contact || '?', where: where(start) });
+};
+
 // Clicked a track in a block: occupy it with a locomotive, as unknown train, or free it.
+// A locomotive that is in another block is shown but cannot be chosen.
 const openBlockMenu = async (block, event) => {
   if (!blockMenu) return;
   const start = tileById(block.start);
@@ -1047,13 +1057,22 @@ const openBlockMenu = async (block, event) => {
   status.className = 'block-menu-status';
   status.textContent = current ? (current.loco ? tr('blk.occupiedBy', { loco: current.loco }) : tr('blk.occupied')) : tr('blk.isFree');
 
-  const button = (text, onClick, className = '') => {
+  const button = (text, onClick, className = '', disabledTitle = '') => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = `block-menu-item ${className}`.trim();
     b.textContent = text;
-    b.addEventListener('click', onClick);
+    if (disabledTitle) {
+      b.disabled = true;
+      b.title = disabledTitle;
+    } else {
+      b.addEventListener('click', onClick);
+    }
     return b;
+  };
+  const blockOfLoco = (name) => {
+    const entry = Object.entries(state.blocks).find(([id, value]) => id !== block.id && value.loco === name);
+    return entry ? entry[0] : null;
   };
 
   let locos = [];
@@ -1065,9 +1084,18 @@ const openBlockMenu = async (block, event) => {
     // No list: the menu still offers unknown train and free.
   }
 
-  const items = locos.map((name) =>
-    button(name, () => setBlock(block, true, name), current && current.loco === name ? 'current' : '')
-  );
+  const items = locos.map((name) => {
+    const elsewhere = blockOfLoco(name);
+    if (elsewhere) {
+      return button(
+        `${name} · ${tr('blk.inBlock', { where: blockWhere(elsewhere) })}`,
+        null,
+        'elsewhere',
+        tr('blk.locoInBlock', { loco: name, where: blockWhere(elsewhere) })
+      );
+    }
+    return button(name, () => setBlock(block, true, name), current && current.loco === name ? 'current' : '');
+  });
   items.push(button(tr('blk.unknown'), () => setBlock(block, true, null)));
   if (current) items.push(button(tr('blk.free'), () => setBlock(block, false, null), 'danger-text'));
 

@@ -1,9 +1,18 @@
 // Block signalling: which blocks of the layout are occupied, and by which locomotive.
 //
 // A block starts at a contact track marked as block start and runs in the direction of
-// its arrow up to the next block-start contact (TrackCatalog.findBlocks). When a
-// block-start contact fires, its block becomes occupied; a block that leads into this
-// contact and is occupied is freed, and its locomotive moves on into the new block.
+// its arrow up to the next block-start contact or turnout (TrackCatalog.findBlocks).
+// When a block-start contact fires, its block becomes occupied, and the block the train
+// came from is freed; its locomotive moves on into the new block.
+//
+// Consistency:
+// - A locomotive is in one block at most: assigning it to another block by hand is
+//   refused until its block is freed.
+// - Where the train came from: an occupied block leading into the contact. When several
+//   do (blocks merging over turnouts), only the one whose route the turnouts are set to
+//   counts. If that still leaves no single block, none is freed and the new block is
+//   occupied by an unknown train.
+//
 // Blocks can also be set and freed by hand. Occupancy is saved with the settings.
 
 const TrackCatalog = require('./public/trackCatalog');
@@ -54,31 +63,60 @@ class BlockTracker {
     if (changed) this.save();
   }
 
-  // A contact track switched on. Returns { block, loco, freed: [ids] } or null when the
-  // contact does not start a block.
+  // The block a train entering `block` comes from, or null when that cannot be told.
+  // Returns { from, ambiguous: [ids] }.
+  sourceOf(block, blocks) {
+    const candidates = blocks.filter((b) => b.id !== block.id && b.next.includes(block.id) && this.occupied.has(b.id));
+    if (candidates.length <= 1) return { from: candidates[0] || null, ambiguous: [] };
+    const routed = candidates.filter((b) => b.nextSet.includes(block.id));
+    if (routed.length === 1) return { from: routed[0], ambiguous: [] };
+    return { from: null, ambiguous: (routed.length ? routed : candidates).map((b) => b.id) };
+  }
+
+  // A contact track switched on. Returns { block, loco, freed: [ids], ambiguous: [ids] }
+  // or null when the contact does not start a block.
   contactOn(tileId) {
     const blocks = this.blocks();
     const block = blocks.find((b) => b.id === tileId);
     if (!block) return null;
 
-    // Blocks that lead into this contact and are occupied: the train comes from there.
-    const previous = blocks.filter((b) => b.id !== block.id && b.next.includes(block.id) && this.occupied.has(b.id));
-    const from = previous.find((b) => this.occupied.get(b.id).loco) || previous[0];
+    const { from, ambiguous } = this.sourceOf(block, blocks);
     const current = this.occupied.get(block.id);
     const loco = (from && this.occupied.get(from.id).loco) || (current && current.loco) || null;
 
-    previous.forEach((b) => this.occupied.delete(b.id));
+    if (from) this.occupied.delete(from.id);
+    // The locomotive is now here and nowhere else.
+    if (loco) {
+      [...this.occupied].forEach(([id, value]) => {
+        if (id !== block.id && value.loco === loco) this.occupied.delete(id);
+      });
+    }
     this.occupied.set(block.id, { loco, since: current ? current.since : new Date().toISOString() });
     this.save();
-    return { block: block.id, loco, freed: previous.map((b) => b.id) };
+    return { block: block.id, loco, freed: from ? [from.id] : [], ambiguous };
+  }
+
+  // The block a locomotive is in, or null.
+  blockOfLoco(loco) {
+    const entry = [...this.occupied].find(([, value]) => value.loco === loco);
+    return entry ? entry[0] : null;
   }
 
   // By hand: occupied with an optional loco name, or free.
   set(blockId, { occupied, loco } = {}) {
     if (!this.blocks().some((b) => b.id === blockId)) throw new Error('Unknown block.');
     if (occupied) {
+      const name = cleanLoco(loco);
+      const elsewhere = name && this.blockOfLoco(name);
+      if (elsewhere && elsewhere !== blockId) {
+        const error = new Error(`${name} is already in another block: free that block first.`);
+        error.code = 'locoInBlock';
+        error.block = elsewhere;
+        error.loco = name;
+        throw error;
+      }
       const current = this.occupied.get(blockId);
-      this.occupied.set(blockId, { loco: cleanLoco(loco), since: current ? current.since : new Date().toISOString() });
+      this.occupied.set(blockId, { loco: name, since: current ? current.since : new Date().toISOString() });
     } else {
       this.occupied.delete(blockId);
     }

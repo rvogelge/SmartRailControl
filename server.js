@@ -213,6 +213,9 @@ const blockContactOn = (tileId) => {
   if (result) {
     const freed = result.freed.length ? `, freed ${result.freed.length} block(s) behind` : '';
     console.log(`[blocks] block ${result.block} occupied${result.loco ? ` by ${result.loco}` : ''}${freed}`);
+    if (result.ambiguous.length) {
+      console.log(`[blocks] ${result.ambiguous.length} occupied blocks lead into block ${result.block} and the turnouts do not tell which one the train came from: none freed`);
+    }
   }
 };
 
@@ -222,6 +225,9 @@ app.post('/api/blocks', (req, res) => {
   try {
     return res.json({ ok: true, blocks: blocks.set(String(id || ''), { occupied: Boolean(occupied), loco }) });
   } catch (error) {
+    if (error.code === 'locoInBlock') {
+      return res.status(409).json({ error: error.message, code: error.code, block: error.block, loco: error.loco });
+    }
     return res.status(404).json({ error: error.message });
   }
 });
