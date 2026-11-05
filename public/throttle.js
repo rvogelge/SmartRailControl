@@ -65,8 +65,8 @@ const normalize = (c) => {
 
 const active = () => state.controllers.find((c) => c.id === state.activeId) || state.controllers[0];
 
-// Speed as a percentage of the locomotive's max speed.
-const percent = (c) => Math.round((c.speed / c.maxSpeed) * 100);
+// How far the slider is filled (the slider ends at the locomotive's max speed).
+const fill = (c) => Math.round((c.speed / c.maxSpeed) * 100);
 
 const setMessage = (text, kind = '') => {
   el.response.textContent = text;
@@ -139,8 +139,9 @@ const renderSelect = () => {
 const renderSpeed = (c) => {
   el.speed.max = String(c.maxSpeed);
   el.speed.value = c.speed;
-  el.speedValue.textContent = `${percent(c)}%`;
-  el.speed.style.setProperty('--fill', `${percent(c)}%`);
+  // The real speed step (0..126), not a percentage.
+  el.speedValue.textContent = String(c.speed);
+  el.speed.style.setProperty('--fill', `${fill(c)}%`);
 };
 
 const renderDirection = (c) => {
@@ -181,7 +182,7 @@ const sendCommand = async ({ stop = false, emergency = false, message = null } =
     if (!data.ok) throw new Error(data.error || t('ctl.sendFailed'));
 
     const dir = c.direction === 'reverse' ? t('ctl.dirReverse') : t('ctl.dirForward');
-    const label = message || (emergency ? t('ctl.emergency') : stop ? t('ctl.stopped') : t('ctl.speedDir', { speed: `${percent(c)}%`, dir }));
+    const label = message || (emergency ? t('ctl.emergency') : stop ? t('ctl.stopped') : t('ctl.speedDir', { speed: c.speed, dir }));
     setMessage(label, 'ok');
   } catch (error) {
     setMessage(error.message, 'error');
