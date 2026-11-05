@@ -158,7 +158,8 @@ Environment variables:
 
 - `S88_FEEDBACK=false` – do not read feedback modules
 - `S88_MODULES` – number of modules to read (default: from the layout)
-- `S88_POLL_MS` – poll interval in ms (default `150`)
+- `S88_POLL_MS` – pause between polls in ms (default `50`; at 2400 baud a poll itself takes another ~90 ms)
+- `S88_DEBUG=1` – log every s88 reply from the Intellibox with a timestamp, and the poll cycle times once a minute
 
 ## Switching accessories
 

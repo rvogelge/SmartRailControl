@@ -221,6 +221,7 @@ const feedback = new FeedbackPoller({
   serial: serialService,
   getModuleCount: s88ModuleCount,
   pollMs: Number(process.env.S88_POLL_MS || FeedbackPoller.DEFAULT_POLL_MS),
+  debug: ['1', 'true', 'yes', 'on'].includes(String(process.env.S88_DEBUG || '').toLowerCase()),
   onChange: ({ contact, on, initial }) => {
     const tiles = contactTiles().filter((t) => contactNumber(t) === contact);
     if (!initial) {

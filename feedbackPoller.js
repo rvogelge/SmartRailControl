@@ -15,7 +15,10 @@
 // stray byte arrived while reading or shortly after. Otherwise they are dropped and all
 // modules are read again silently: no rule fires on garbage.
 
-const DEFAULT_POLL_MS = 150;
+// Pause between polls. At 2400 baud the two commands of a poll take another ~90 ms.
+const DEFAULT_POLL_MS = 50;
+// S88_DEBUG=1: log every s88 reply with a timestamp and the poll cycle times once a minute.
+const DEBUG_STATS_MS = 60000;
 const ERROR_RETRY_MS = 2000;
 const P50X_EVENT_SENSOR = 0x04;
 // Stray bytes that belong to a misread reply arrive right behind it: wait this long
@@ -30,10 +33,18 @@ const decodeModule = (module, [high, low]) =>
     return [(module - 1) * 16 + i + 1, on];
   });
 
+const hexBytes = (bytes) => bytes.map((b) => `0x${b.toString(16).padStart(2, '0')}`).join(' ');
+const describeBytes = (module, bytes) => {
+  const on = decodeModule(module, bytes).filter(([, isOn]) => isOn).map(([contact]) => contact);
+  return `${hexBytes(bytes)} on: ${on.length ? on.join(',') : '–'}`;
+};
+
 class FeedbackPoller {
   // serial: SerialService · getModuleCount(): how many s88 modules to read
   // onChange({ contact, on, initial }) is called for every change.
-  constructor({ serial, getModuleCount, onChange, pollMs = DEFAULT_POLL_MS, guardMs = DEFAULT_GUARD_MS }) {
+  constructor({ serial, getModuleCount, onChange, pollMs = DEFAULT_POLL_MS, guardMs = DEFAULT_GUARD_MS, debug = false }) {
+    this.debug = debug;
+    this.stats = { since: Date.now(), polls: 0, totalMs: 0, maxMs: 0, lastStart: null };
     this.serial = serial;
     this.getModuleCount = getModuleCount;
     this.onChange = onChange;
@@ -65,8 +76,32 @@ class FeedbackPoller {
     if (this.timer.unref) this.timer.unref();
   }
 
+  debugLog(text) {
+    if (this.debug) console.log(`[s88 debug] ${new Date().toISOString()} ${text}`);
+  }
+
+  // Time from the start of one poll to the start of the next: how long a contact may
+  // close and open again before the Intellibox is asked.
+  countCycle() {
+    if (!this.debug) return;
+    const now = Date.now();
+    const s = this.stats;
+    if (s.lastStart !== null) {
+      const ms = now - s.lastStart;
+      s.polls += 1;
+      s.totalMs += ms;
+      s.maxMs = Math.max(s.maxMs, ms);
+    }
+    s.lastStart = now;
+    if (now - s.since >= DEBUG_STATS_MS && s.polls > 0) {
+      this.debugLog(`cycle: ${s.polls} polls, avg ${Math.round(s.totalMs / s.polls)} ms, max ${s.maxMs} ms`);
+      Object.assign(s, { since: now, polls: 0, totalMs: 0, maxMs: 0 });
+    }
+  }
+
   async loop() {
     let wait = this.pollMs;
+    this.countCycle();
     try {
       await this.poll();
     } catch (error) {
@@ -99,7 +134,9 @@ class FeedbackPoller {
       all.forEach(({ module, bytes }) => updates.push([module, bytes, !this.initialized]));
     } else if (!this.initialized) {
       for (let module = 1; module <= modules; module += 1) {
-        updates.push([module, await this.serial.readSensorModule(module), true]);
+        const bytes = await this.serial.readSensorModule(module);
+        this.debugLog(`XSensor module ${module}: ${describeBytes(module, bytes)}`);
+        updates.push([module, bytes, true]);
       }
       // Clear events the Intellibox collected before: the full read already covers them.
       const flags = await this.serial.readEvents();
@@ -108,6 +145,9 @@ class FeedbackPoller {
       const flags = await this.serial.readEvents();
       if (flags[0] & P50X_EVENT_SENSOR) {
         const changed = await this.serial.readSensorEvents();
+        this.debugLog(
+          `XEvent ${hexBytes(flags)} → XEvtSen ${changed.length ? changed.map(({ module, bytes }) => `module ${module}: ${describeBytes(module, bytes)}`).join(' | ') : '(no module)'}`
+        );
         if (changed.some(({ module }) => !(module >= 1 && module <= modules))) {
           throw new Error('s88 reply out of step with the commands (unknown module)');
         }

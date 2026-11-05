@@ -184,3 +184,20 @@ test('settle waits until the line is quiet, then drops what is left', async () =
   await assert.rejects(service.settle({ quietMs: 60, maxMs: 150 }), /keeps sending/);
   clearInterval(noise);
 });
+
+test('S88_DEBUG logs the raw XEvtSen reply with the contacts that are on', async () => {
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(String(line));
+  const { service } = fakeIntellibox((packet) => {
+    if (packet[1] === 0x98) return [0x00, 0x00, 0x00];
+    if (packet[1] === 0xc8) return [0x04];
+    if (packet[1] === 0xcb) return [1, 0x00, 0x0a, 0]; // contacts 13 and 15
+    return [];
+  });
+  const poller = new FeedbackPoller({ serial: service, getModuleCount: () => 1, onChange: () => {}, debug: true });
+  await poller.poll();
+  await poller.poll();
+  console.log = log;
+  assert.ok(lines.some((l) => l.includes('[s88 debug]') && l.includes('XEvtSen module 1: 0x00 0x0a on: 13,15')), lines.join('\n'));
+});
