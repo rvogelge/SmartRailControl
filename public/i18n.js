@@ -330,7 +330,15 @@
       'fb.code.portClosed': 'serial port {port} not open',
       'fb.code.error': '{message}',
       'fb.code.starting': 'reading s88 modules…',
-      'fb.code.live': plural('reading 1 s88 module', 'reading {n} s88 modules')
+      'fb.code.live': plural('reading 1 s88 module', 'reading {n} s88 modules'),
+      's88.title': 's88 monitor',
+      's88.waiting': 'Trigger a contact to see its number.',
+      's88.contact': 'Contact {contact}',
+      's88.module': 'module {module}, input {input}',
+      's88.on': 'on',
+      's88.off': 'off',
+      's88.noTrack': 'no contact track has this number',
+      's88.assign': 'Give the selected contact track no. {contact}'
     },
 
     de: {
@@ -632,6 +640,14 @@
       'fb.code.error': '{message}',
       'fb.code.starting': 's88-Module werden gelesen…',
       'fb.code.live': plural('1 s88-Modul wird gelesen', '{n} s88-Module werden gelesen'),
+      's88.title': 's88-Monitor',
+      's88.waiting': 'Löse einen Kontakt aus, um seine Nummer zu sehen.',
+      's88.contact': 'Kontakt {contact}',
+      's88.module': 'Modul {module}, Eingang {input}',
+      's88.on': 'ein',
+      's88.off': 'aus',
+      's88.noTrack': 'kein Kontaktgleis hat diese Nummer',
+      's88.assign': 'Ausgewähltem Kontaktgleis Nr. {contact} geben',
 
       // Track elements (English names come from trackCatalog.js)
       'el.straight': 'Gerade',

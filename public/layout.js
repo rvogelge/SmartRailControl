@@ -105,6 +105,9 @@ const ui = {
   propsTitle: $('propsTitle'),
   propsFields: $('propsFields'),
   rules: $('rulesButton'),
+  s88State: $('s88State'),
+  s88Last: $('s88Last'),
+  s88Recent: $('s88Recent'),
   modeButtons: document.querySelectorAll('[data-mode]')
 };
 
@@ -121,6 +124,7 @@ const state = {
   marquee: null, // { start, end, base }
   flashing: new Set(), // momentary elements briefly highlighted in run mode
   sensors: {}, // contact tracks that are on (occupied): { id: true }
+  s88: { events: [], contactsOn: [], feedback: null, lastSeq: null, fresh: false }, // s88 monitor (edit mode)
   propsFor: null, // key the properties bar was built for
   zoom: CELL_PX, // on-screen pixels per grid square
   zoomFit: true,
@@ -424,7 +428,10 @@ const renderTiles = (issues = computeIssues()) => {
         class: classes.join(' ')
       });
       g.append(...cellRects(tile, 'tile-bg'));
-      const active = state.flashing.has(tile.id) || (state.mode === 'run' && Boolean(state.sensors[tile.id]));
+      const active =
+        state.flashing.has(tile.id) ||
+        (state.mode === 'run' && Boolean(state.sensors[tile.id])) ||
+        (state.mode === 'edit' && tile.type === 'contact' && s88IsOn(tile));
       g.append(drawElement(tile.type, { rotation: tile.rotation, state: tile.state, active }));
 
       // Address badge (not rotated). In run mode only set addresses are shown.
@@ -693,6 +700,7 @@ const render = () => {
   renderToolbar(issues);
   renderIssues(issues);
   renderProps();
+  renderS88();
 };
 
 /* ---------- Zoom ---------- */
@@ -744,6 +752,125 @@ window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => (state.zoomFit ? setZoom(0, { fit: true }) : renderBoard()), 120);
 });
+
+/* ---------- s88 monitor (edit mode) ---------- */
+
+// Shows which contact number an s88 contact reports when it is triggered, so a contact
+// track can be given the right number. Contacts count across modules (16 per module).
+const s88IsOn = (tile) => {
+  const number = tile.addresses && tile.addresses[0];
+  return Boolean(number) && state.s88.contactsOn.includes(number);
+};
+const s88Position = (contact) => ({ module: Math.ceil(contact / 16), input: ((contact - 1) % 16) + 1 });
+const contactTracksWith = (contact) => state.tiles.filter((t) => t.type === 'contact' && t.addresses && t.addresses[0] === contact);
+const s88Time = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+const selectContactTracks = (contact) => {
+  const tracks = contactTracksWith(contact);
+  if (tracks.length === 0) return;
+  state.tool = 'select';
+  ui.board.dataset.tool = 'select';
+  state.selection = new Set(tracks.map((t) => t.id));
+  render();
+  setStatus(tracks.length > 1 ? tr('lay.nSelected', { n: tracks.length }) : tr('lay.oneSelected', { name: describe(tracks[0]) }));
+};
+
+const renderS88 = () => {
+  if (!ui.s88Last || state.mode !== 'edit') return;
+  const { events, feedback, fresh } = state.s88;
+
+  const fbState = feedback ? feedback.state : 'off';
+  ui.s88State.className = `s88-state ${fbState}`;
+  ui.s88State.textContent = feedback ? tr(`fb.${feedback.state}`) : '–';
+  ui.s88State.title = feedback
+    ? feedback.code
+      ? tr(`fb.code.${feedback.code}`, { ...feedback.params, n: feedback.params.modules })
+      : feedback.text || ''
+    : '';
+
+  const last = events[events.length - 1];
+  const parts = [];
+  if (!last) {
+    const note = document.createElement('span');
+    note.className = 's88-note';
+    note.textContent = feedback && feedback.state !== 'live' ? ui.s88State.title : tr('s88.waiting');
+    parts.push(note);
+  } else {
+    const { module, input } = s88Position(last.contact);
+    const id = document.createElement('span');
+    id.className = `s88-id ${last.on ? 'on' : 'off'}${fresh ? ' fresh' : ''}`;
+    id.textContent = tr('s88.contact', { contact: last.contact });
+    const detail = document.createElement('span');
+    detail.className = 's88-detail';
+    detail.textContent = `${last.on ? tr('s88.on') : tr('s88.off')} · ${tr('s88.module', { module, input })} · ${s88Time(last.at)}`;
+    parts.push(id, detail);
+
+    const tracks = contactTracksWith(last.contact);
+    const match = document.createElement(tracks.length ? 'button' : 'span');
+    if (tracks.length) {
+      match.type = 'button';
+      match.className = 's88-match';
+      match.textContent = `→ ${tracks.map((t) => tr('lay.at', { label: I18n.label(t.type), where: where(t) })).join(' · ')}`;
+      match.addEventListener('click', () => selectContactTracks(last.contact));
+    } else {
+      match.className = 's88-match none';
+      match.textContent = tr('s88.noTrack');
+    }
+    parts.push(match);
+
+    // One contact track selected that does not have this number yet: offer to give it.
+    const selected = selectedTiles();
+    if (selected.length === 1 && selected[0].type === 'contact' && !tracks.includes(selected[0])) {
+      const assign = document.createElement('button');
+      assign.type = 'button';
+      assign.className = 'ghost small s88-assign';
+      assign.textContent = tr('s88.assign', { contact: last.contact });
+      assign.addEventListener('click', () => {
+        setAddress(selected[0].id, 0, { value: String(last.contact), select() {} });
+        state.propsFor = null;
+        render();
+      });
+      parts.push(assign);
+    }
+  }
+  ui.s88Last.replaceChildren(...parts);
+
+  // Earlier changes, newest first.
+  ui.s88Recent.replaceChildren(
+    ...events
+      .slice(0, -1)
+      .reverse()
+      .map((event) => {
+        const li = document.createElement('li');
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = `s88-chip ${event.on ? 'on' : 'off'}`;
+        chip.textContent = `${event.contact} ${event.on ? '▲' : '▽'}`;
+        chip.title = `${tr('s88.contact', { contact: event.contact })} ${event.on ? tr('s88.on') : tr('s88.off')} · ${s88Time(event.at)}`;
+        chip.addEventListener('click', () => selectContactTracks(event.contact));
+        li.append(chip);
+        return li;
+      })
+  );
+};
+
+// Takes over the s88 part of /api/live. Returns true when the layout must be redrawn.
+const applyS88 = (live) => {
+  const s88 = live.s88 || { events: [], contactsOn: [] };
+  const lastSeq = s88.events.length ? s88.events[s88.events.length - 1].seq : 0;
+  // Events from before the page was opened are listed, but not highlighted as new.
+  const fresh = state.s88.lastSeq !== null && lastSeq !== state.s88.lastSeq;
+  const onChanged = JSON.stringify(s88.contactsOn) !== JSON.stringify(state.s88.contactsOn);
+  state.s88 = {
+    events: s88.events,
+    contactsOn: s88.contactsOn,
+    feedback: live.feedback || null,
+    lastSeq,
+    fresh // flashes the newest contact once
+  };
+  if (state.mode === 'edit') renderS88();
+  return state.mode === 'edit' && onChanged;
+};
 
 /* ---------- Actions ---------- */
 
@@ -898,6 +1025,7 @@ const pollLive = async () => {
     const live = await response.json();
     let changed = JSON.stringify(live.sensors) !== JSON.stringify(state.sensors);
     state.sensors = live.sensors;
+    if (applyS88(live)) changed = true;
     state.tiles.forEach((tile) => {
       const next = live.states[tile.id];
       if (next !== undefined && next !== tile.state) {

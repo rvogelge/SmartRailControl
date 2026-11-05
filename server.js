@@ -207,13 +207,26 @@ const s88ModuleCount = () => {
   return Math.ceil(highest / 16);
 };
 
+// s88 monitor (edit mode): the last contacts that changed, newest last.
+const S88_MONITOR_SIZE = 20;
+const s88Events = [];
+let s88Seq = 0;
+const recordS88Event = (contact, on, tiles) => {
+  s88Seq += 1;
+  s88Events.push({ seq: s88Seq, contact, on, at: new Date().toISOString(), tiles: tiles.map((t) => t.id) });
+  if (s88Events.length > S88_MONITOR_SIZE) s88Events.shift();
+};
+
 const feedback = new FeedbackPoller({
   serial: serialService,
   getModuleCount: s88ModuleCount,
   pollMs: Number(process.env.S88_POLL_MS || FeedbackPoller.DEFAULT_POLL_MS),
   onChange: ({ contact, on, initial }) => {
     const tiles = contactTiles().filter((t) => contactNumber(t) === contact);
-    if (!initial) console.log(`[s88] contact ${contact} ${on ? 'on' : 'off'}${tiles.length ? '' : ' (no contact track with this number)'}`);
+    if (!initial) {
+      console.log(`[s88] contact ${contact} ${on ? 'on' : 'off'}${tiles.length ? '' : ' (no contact track with this number)'}`);
+      recordS88Event(contact, on, tiles);
+    }
     tiles.forEach((tile) => {
       ruleEngine.cancelPulse(tile.id);
       if (initial) {
@@ -276,7 +289,8 @@ app.get('/api/live', (_req, res) => {
   const states = Object.fromEntries(
     settingsStore.getLayout().tiles.filter((t) => t.state !== undefined).map((t) => [t.id, t.state])
   );
-  res.json({ states, ...ruleEngine.getLive(), feedback: feedback.getStatus() });
+  const contactsOn = [...feedback.contacts].filter(([, on]) => on).map(([contact]) => contact).sort((a, b) => a - b);
+  res.json({ states, ...ruleEngine.getLive(), feedback: feedback.getStatus(), s88: { events: s88Events, contactsOn } });
 });
 
 app.get('/api/rules', (_req, res) => {

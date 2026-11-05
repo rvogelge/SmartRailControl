@@ -905,6 +905,139 @@ body[data-mode='run'] .zoom-group {
   color: var(--muted);
 }
 
+/* s88 monitor (edit mode): one line of fixed height, so the grid below never shifts */
+.s88-monitor {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.s88-title {
+  flex: none;
+  font-size: 0.85rem;
+}
+
+.s88-state {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: var(--surface-3);
+}
+
+.s88-state.live {
+  color: var(--ok);
+}
+
+.s88-state.error {
+  color: var(--danger);
+}
+
+.s88-state.starting {
+  color: var(--warn);
+}
+
+.s88-last {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.s88-note,
+.s88-detail {
+  color: var(--muted);
+}
+
+.s88-id {
+  padding: 3px 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+}
+
+.s88-id.on {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.s88-id.fresh {
+  animation: s88-flash 1.2s ease-out;
+}
+
+@keyframes s88-flash {
+  from {
+    background: var(--accent-soft);
+    box-shadow: 0 0 0 4px var(--accent-soft);
+  }
+}
+
+.s88-match {
+  padding: 2px 6px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.s88-match.none {
+  color: var(--warn);
+  cursor: default;
+}
+
+.s88-recent {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, #000 85%, transparent);
+}
+
+.s88-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-3);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.s88-chip.on {
+  color: var(--ok);
+}
+
+@media (max-width: 760px) {
+  .s88-detail,
+  .s88-recent {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s88-id.fresh {
+    animation: none;
+  }
+}
+
 /* Selection frame, conflicts, issues, zoom */
 .marquee {
   fill: rgba(79, 179, 255, 0.1);
