@@ -771,6 +771,24 @@ body[data-mode='run'] .zoom-group {
   stroke: #b06a6a;
 }
 
+.tile.block-highlight .tile-bg {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 6;
+}
+
+.block-number-badge rect {
+  fill: rgba(11, 17, 23, 0.85);
+  stroke: #b48cff;
+  stroke-width: 2.5;
+}
+
+.block-number-badge text {
+  fill: #d9c6ff;
+  font-size: 18px;
+  font-weight: 700;
+}
+
 .track .block-arrow {
   fill: #0b1117;
 }
@@ -2356,6 +2374,30 @@ body:not([data-mode='run']) .run-only {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+.route-step {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  border-radius: 12px;
+  border: 1px dashed transparent;
+}
+
+.route-step.parallel {
+  border-color: var(--border);
+}
+
+.route-or {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.parallel-add {
+  padding: 3px 4px;
+  font-size: 0.78rem;
 }
 
 .route-chip {

@@ -247,3 +247,14 @@ test('locomotives: max speed caps the speed; driving state and selection are sav
   assert.equal(store.setActiveController('b').activeControllerId, 'b');
   assert.equal(new SettingsStore(file).getControllers().activeControllerId, 'b');
 });
+
+test('routes: steps of parallel blocks; old saves with blocks become one block per step', () => {
+  const store = new SettingsStore(tmpFile());
+  const [old, parallel] = store.setRoutes([
+    { id: 'r1', name: 'Old', blocks: ['a', 'b'] },
+    { id: 'r2', name: 'Station', steps: [['a'], ['p1', 'p2', 'p1'], []], loop: true }
+  ]);
+  assert.deepEqual(old.steps, [['a'], ['b']]);
+  assert.deepEqual(parallel.steps, [['a'], ['p1', 'p2']]);
+  assert.equal(parallel.loop, true);
+});

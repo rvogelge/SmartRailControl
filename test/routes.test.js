@@ -45,7 +45,7 @@ const setup = (routes) => {
 };
 
 test('a run sets the turnouts towards the next block of the sequence', async () => {
-  const { tracker, runner, switched, stopped } = setup([{ id: 'r', name: 'R', blocks: ['b', 'd'], loop: false }]);
+  const { tracker, runner, switched, stopped } = setup([{ id: 'r', name: 'R', steps: [['b'], ['d']], loop: false }]);
   tracker.set('b', { occupied: true, loco: 'V200' });
   await runner.start('r', 'V200');
   assert.deepEqual(switched, [['t', 'diverging']]);
@@ -60,7 +60,7 @@ test('a run sets the turnouts towards the next block of the sequence', async () 
 });
 
 test('an occupied next block stops the locomotive; when it is free, the turnouts are set', async () => {
-  const { tracker, runner, switched, stopped } = setup([{ id: 'r', name: 'R', blocks: ['b', 'd'], loop: false }]);
+  const { tracker, runner, switched, stopped } = setup([{ id: 'r', name: 'R', steps: [['b'], ['d']], loop: false }]);
   tracker.set('b', { occupied: true, loco: 'V200' });
   tracker.set('d', { occupied: true, loco: null });
   await runner.start('r', 'V200');
@@ -76,7 +76,7 @@ test('an occupied next block stops the locomotive; when it is free, the turnouts
 });
 
 test('starting needs the locomotive in a block of the route; unconnected blocks end the run', async () => {
-  const { tracker, runner, stopped } = setup([{ id: 'r', name: 'R', blocks: ['a', 'b'], loop: false }]);
+  const { tracker, runner, stopped } = setup([{ id: 'r', name: 'R', steps: [['a'], ['b']], loop: false }]);
   assert.throws(() => runner.start('r', 'V200'), /not in a block of this route/);
   tracker.set('a', { occupied: true, loco: 'V200' });
   await runner.start('r', 'V200');
@@ -85,7 +85,7 @@ test('starting needs the locomotive in a block of the route; unconnected blocks 
 });
 
 test('the runner stops a locomotive that leaves the route', async () => {
-  const { tracker, runner, stopped } = setup([{ id: 'r', name: 'R', blocks: ['b', 'd'], loop: false }]);
+  const { tracker, runner, stopped } = setup([{ id: 'r', name: 'R', steps: [['b'], ['d']], loop: false }]);
   tracker.set('b', { occupied: true, loco: 'V200' });
   await runner.start('r', 'V200');
   tracker.set('b', { occupied: false });
@@ -95,4 +95,59 @@ test('the runner stops a locomotive that leaves the route', async () => {
   assert.deepEqual(stopped, ['V200']);
   assert.equal(runner.stop('r'), true);
   assert.deepEqual(runner.getLive(), {});
+});
+
+// A split: c0 (→) over turnout t2 into two parallel blocks p1 (straight) and p2 (diverging).
+const split = () => [
+  { id: 'c0', type: 'contact', x: 1, y: 0, rotation: 0, block: 'right' },
+  { id: 't2', type: 'turnout-right', x: 2, y: 0, rotation: 0, state: 'straight' },
+  { id: 's3', type: 'straight', x: 3, y: 0, rotation: 0 },
+  { id: 'p1', type: 'contact', x: 4, y: 0, rotation: 0, block: 'right' },
+  { id: 'dg', type: 'diagonal', x: 3, y: 1, rotation: 90 },
+  { id: 'cu', type: 'curve-45-right', x: 4, y: 2, rotation: 180 },
+  { id: 'p2', type: 'contact', x: 5, y: 2, rotation: 0, block: 'right' }
+];
+
+const splitSetup = () => {
+  const tiles = split();
+  const stopped = [];
+  const switched = [];
+  const tracker = new BlockTracker({ getTiles: () => tiles, getLocoSpeed: () => 30 });
+  const runner = new RouteRunner({
+    tracker,
+    getTiles: () => tiles,
+    getRoutes: () => [{ id: 'r', name: 'R', steps: [['c0'], ['p1', 'p2']], loop: false }],
+    setTurnout: async (id, state) => {
+      switched.push([id, state]);
+      tiles.find((t) => t.id === id).state = state;
+    },
+    stopLoco: (name) => stopped.push(name)
+  });
+  return { tracker, runner, stopped, switched };
+};
+
+test('parallel blocks: the first free one of the next step is chosen', async () => {
+  const { tracker, runner, switched, stopped } = splitSetup();
+  tracker.set('c0', { occupied: true, loco: 'V200' });
+  tracker.set('p1', { occupied: true, loco: null });
+  await runner.start('r', 'V200');
+  assert.equal(runner.getLive().r.next, 'p2');
+  assert.deepEqual(switched, [['t2', 'diverging']]);
+  assert.deepEqual(stopped, []);
+
+  // p1 becomes free: p2 stays chosen, the turnout does not flip.
+  tracker.set('p1', { occupied: false });
+  await runner.evaluate();
+  assert.equal(runner.getLive().r.next, 'p2');
+  assert.deepEqual(switched, [['t2', 'diverging']]);
+});
+
+test('parallel blocks: all occupied stops the locomotive', async () => {
+  const { tracker, runner, stopped } = splitSetup();
+  tracker.set('c0', { occupied: true, loco: 'V200' });
+  tracker.set('p1', { occupied: true, loco: null });
+  tracker.set('p2', { occupied: true, loco: null });
+  await runner.start('r', 'V200');
+  assert.equal(runner.getLive().r.code, 'waiting');
+  assert.deepEqual(stopped, ['V200']);
 });

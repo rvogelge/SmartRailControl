@@ -105,6 +105,7 @@ const ui = {
   propsTitle: $('propsTitle'),
   propsFields: $('propsFields'),
   rules: $('rulesButton'),
+  blocksButton: $('blocksButton'),
   s88State: $('s88State'),
   s88Last: $('s88Last'),
   s88Recent: $('s88Recent'),
@@ -126,6 +127,7 @@ const state = {
   sensors: {}, // contact tracks that are on (occupied): { id: true }
   blocks: {}, // occupied blocks from the server: { start contact id: { loco } }
   blockNumbers: {}, // { start contact id: number } (B1, B2, …)
+  highlight: new Set(), // tile ids of blocks hovered in the Blocks window
   s88: { events: [], contactsOn: [], feedback: null, lastSeq: null, fresh: false }, // s88 monitor (edit mode)
   propsFor: null, // key the properties bar was built for
   zoom: CELL_PX, // on-screen pixels per grid square
@@ -439,9 +441,24 @@ const occupiedTiles = () => {
   return map;
 };
 
-// Loco names of occupied blocks, on the middle straight track of each block.
+// Block numbers on the first track after the start contact, and the loco names of
+// occupied blocks on the middle straight track of each block.
 const renderBlockLabels = () => {
   const group = svg('g', { class: 'block-labels', 'pointer-events': 'none' });
+  layoutBlocks().forEach((block) => {
+    const number = state.blockNumbers[block.id];
+    const entry = tileById(block.tiles[1] || block.tiles[0]);
+    if (!number || !entry) return;
+    const [cx, cy] = cellsOf(entry)[0];
+    const text = `B${number}`;
+    const width = 14 + text.length * 13;
+    const badge = svg('g', { class: 'block-number-badge' });
+    badge.append(svg('rect', { x: cx * CELL + CELL / 2 - width / 2, y: cy * CELL + CELL - 30, width, height: 26, rx: 7 }));
+    const caption = svg('text', { x: cx * CELL + CELL / 2, y: cy * CELL + CELL - 11, 'text-anchor': 'middle' });
+    caption.textContent = text;
+    badge.append(caption);
+    group.append(badge);
+  });
   layoutBlocks().forEach((block) => {
     const occupied = state.blocks[block.id];
     if (!occupied || !occupied.loco) return;
@@ -474,6 +491,7 @@ const renderTiles = (issues = computeIssues()) => {
       if (state.mode === 'edit' && issues.conflictIds.has(tile.id)) classes.push('conflict');
       if (state.mode === 'run' && isClickableInRun(tile.type)) classes.push('switchable');
       if (occupied.has(tile.id)) classes.push('block-occupied');
+      if (state.highlight.has(tile.id)) classes.push('block-highlight');
 
       const g = svg('g', {
         transform: `translate(${tile.x * CELL} ${tile.y * CELL})`,
@@ -1272,6 +1290,25 @@ const pollLive = async () => {
   }
 };
 
+// Blocks and Fahrstraßen in their own window, next to the layout.
+const openBlocksWindow = () => {
+  const win = window.open('/blocks.html', 'smartrailcontrol-blocks', 'popup,width=1100,height=820');
+  if (win) win.focus();
+  else location.href = '/blocks.html'; // Popups blocked: open it here instead.
+};
+window.SmartRailControl.blocks = openBlocksWindow;
+
+// The Blocks window highlights the blocks hovered there.
+if (typeof BroadcastChannel === 'function') {
+  new BroadcastChannel('smartrailcontrol').addEventListener('message', (event) => {
+    const data = event.data || {};
+    if (data.type !== 'highlightBlocks') return;
+    const ids = new Set(data.blocks || []);
+    state.highlight = new Set(layoutBlocks().filter((b) => ids.has(b.id)).flatMap((b) => b.tiles));
+    renderTiles();
+  });
+}
+
 const openRulesWindow = () => {
   const win = window.open('/rules.html', 'smartrailcontrol-rules', 'popup,width=1180,height=820');
   if (win) win.focus();
@@ -1489,6 +1526,7 @@ ui.palette.addEventListener('click', (event) => {
 
 ui.rotate.addEventListener('click', rotate);
 ui.rules.addEventListener('click', openRulesWindow);
+ui.blocksButton.addEventListener('click', openBlocksWindow);
 
 ui.remove.addEventListener('click', () => {
   removeTiles([...state.selection]);

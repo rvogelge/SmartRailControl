@@ -191,23 +191,28 @@ const createController = (overrides = {}) => ({
   ...overrides
 });
 
-// Fahrstraßen (routes): ordered blocks for automated operation.
+// Fahrstraßen (routes) for automated operation: a sequence of steps, each step one block
+// or several parallel blocks (e.g. station tracks). Older saves with `blocks: [ids]`
+// become one block per step.
 const MAX_ROUTES = 50;
+const BLOCK_ID = /^[\w-]{1,64}$/;
 const sanitizeRoutes = (input) => {
   const list = Array.isArray(input) ? input.slice(0, MAX_ROUTES) : [];
   const ids = new Set();
   return list.map((route, index) => {
     if (!route || typeof route !== 'object') throw new Error('Invalid route.');
-    let id = typeof route.id === 'string' && /^[\w-]{1,64}$/.test(route.id) ? route.id : crypto.randomUUID();
+    let id = typeof route.id === 'string' && BLOCK_ID.test(route.id) ? route.id : crypto.randomUUID();
     if (ids.has(id)) id = crypto.randomUUID();
     ids.add(id);
-    const blocks = (Array.isArray(route.blocks) ? route.blocks : [])
-      .filter((b) => typeof b === 'string' && /^[\w-]{1,64}$/.test(b))
+    const raw = Array.isArray(route.steps) ? route.steps : Array.isArray(route.blocks) ? route.blocks.map((b) => [b]) : [];
+    const steps = raw
+      .map((step) => [...new Set((Array.isArray(step) ? step : [step]).filter((b) => typeof b === 'string' && BLOCK_ID.test(b)))].slice(0, 10))
+      .filter((step) => step.length > 0)
       .slice(0, 100);
     return {
       id,
       name: String(route.name || '').trim().slice(0, 40) || `Route ${index + 1}`,
-      blocks,
+      steps,
       loop: Boolean(route.loop)
     };
   });

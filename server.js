@@ -362,10 +362,15 @@ app.get('/api/blocklist', (_req, res) => {
       };
     })
     .sort((a, b) => a.number - b.number);
+  // Every block of a step has to reach at least one block of the next step.
   const routes = settingsStore.getRoutes().map((route) => {
-    const pairs = route.blocks.slice(1).map((to, i) => [route.blocks[i], to]);
-    if (route.loop && route.blocks.length > 1) pairs.push([route.blocks[route.blocks.length - 1], route.blocks[0]]);
-    return { ...route, links: pairs.map(([from, to]) => ({ from, to, connected: Boolean(TrackCatalog.findPath(tiles, from, to)) })) };
+    const { steps } = route;
+    const pairs = steps.slice(1).map((to, i) => [steps[i], to]);
+    if (route.loop && steps.length > 1) pairs.push([steps[steps.length - 1], steps[0]]);
+    const links = pairs.flatMap(([fromStep, toStep]) =>
+      fromStep.map((from) => ({ from, to: toStep, connected: toStep.some((to) => to !== from && TrackCatalog.findPath(tiles, from, to)) }))
+    );
+    return { ...route, links };
   });
   res.json({ blocks: list, routes, runs: routeRunner.getLive() });
 });

@@ -1,10 +1,12 @@
-// Automated operation of Fahrstraßen (routes): a route is a fixed sequence of blocks,
-// optionally a loop. A run follows one locomotive along it:
+// Automated operation of Fahrstraßen (routes): a route is a fixed sequence of steps,
+// optionally a loop; a step is one block or several parallel blocks (e.g. station
+// tracks). A run follows one locomotive along it:
 //
-// - Whenever the locomotive is in a block of the route, the next block of the sequence
-//   is looked at. If it is free, the turnouts on the way there are set. If it is
-//   occupied, the locomotive is stopped in its block (the driver restarts it once the
-//   block is free; the turnouts are set then).
+// - Whenever the locomotive is in a block of the route, the blocks of the next step are
+//   looked at: the first one (in the order listed) that is free and connected by track
+//   is chosen, and the turnouts on the way there are set. If none is free, the
+//   locomotive is stopped in its block (the driver restarts it once one is free; the
+//   turnouts are set then). A block already chosen is kept while it stays free.
 // - At the end of a sequence that is not a loop, the locomotive is stopped: run finished.
 // - If the locomotive leaves the route, or two blocks of the sequence have no track
 //   connection, it is stopped and the run ends with an error.
@@ -31,17 +33,18 @@ class RouteRunner {
   start(routeId, loco) {
     const route = this.getRoutes().find((r) => r.id === routeId);
     if (!route) throw new Error('Unknown route.');
-    if (route.blocks.length < 2) throw new Error('A route needs at least two blocks.');
+    if (route.steps.length < 2) throw new Error('A route needs at least two steps.');
     if (!loco) throw new Error('Choose a locomotive.');
     const block = this.tracker.blockOfLoco(loco);
-    if (!block || !route.blocks.includes(block)) {
+    if (!block || !route.steps.some((step) => step.includes(block))) {
       const error = new Error(`${loco} is not in a block of this route.`);
       error.code = 'locoNotInRoute';
       throw error;
     }
     const other = [...this.runs.values()].find((r) => r.loco === loco && !r.ended && r.routeId !== routeId);
     if (other) throw new Error(`${loco} already runs on another route.`);
-    this.runs.set(routeId, { routeId, loco, status: 'starting', index: route.blocks.indexOf(block), current: block, next: null, ended: false, since: new Date().toISOString() });
+    const index = route.steps.findIndex((step) => step.includes(block));
+    this.runs.set(routeId, { routeId, loco, status: 'starting', index, current: block, next: null, ended: false, since: new Date().toISOString() });
     this.log(`[routes] ${route.name}: started with ${loco}`);
     return this.evaluate();
   }
@@ -81,51 +84,61 @@ class RouteRunner {
       this.runs.delete(run.routeId);
       return;
     }
-    const { blocks } = route;
+    const { steps } = route;
     const current = this.tracker.blockOfLoco(run.loco);
-    if (!current || !blocks.includes(current)) {
+    if (!current || !steps.some((step) => step.includes(current))) {
       this.end(run, 'error', current ? 'left the route' : 'no longer in a block');
       run.code = current ? 'leftRoute' : 'notInBlock';
       return;
     }
 
-    // Position in the sequence (a block may appear more than once in a loop).
-    if (blocks[run.index] !== current) {
-      const following = blocks.findIndex((b, i) => b === current && i > run.index);
-      run.index = following !== -1 ? following : blocks.indexOf(current);
+    // Position in the sequence (a block may appear in more than one step of a loop).
+    if (!steps[run.index] || !steps[run.index].includes(current)) {
+      const following = steps.findIndex((step, i) => step.includes(current) && i > run.index);
+      run.index = following !== -1 ? following : steps.findIndex((step) => step.includes(current));
     }
     const moved = run.current !== current;
     run.current = current;
+    if (moved) run.next = null;
 
-    const nextIndex = run.index + 1 < blocks.length ? run.index + 1 : route.loop ? 0 : null;
+    const nextIndex = run.index + 1 < steps.length ? run.index + 1 : route.loop ? 0 : null;
     if (nextIndex === null) {
       run.next = null;
       this.end(run, 'finished', 'end of the route');
       run.code = 'finished';
       return;
     }
-    const next = blocks[nextIndex];
-    run.next = next;
 
-    if (this.tracker.getLive()[next]) {
+    // Blocks of the next step that can be reached, in the order listed.
+    const tiles = this.getTiles();
+    const occupied = this.tracker.getLive();
+    const reachable = steps[nextIndex]
+      .filter((id) => id !== current)
+      .map((id) => ({ id, path: TrackCatalog.findPath(tiles, current, id) }))
+      .filter((c) => c.path);
+    if (reachable.length === 0) {
+      run.next = steps[nextIndex][0];
+      this.end(run, 'error', 'no track connection to the next step');
+      run.code = 'noConnection';
+      return;
+    }
+    const free = reachable.filter((c) => !occupied[c.id]);
+    if (free.length === 0) {
+      run.next = reachable[0].id;
       if (run.status !== 'waiting') {
         run.status = 'waiting';
         run.code = 'waiting';
         this.stopLoco(run.loco);
-        this.log(`[routes] ${run.loco}: next block occupied, locomotive stopped`);
+        this.log(`[routes] ${run.loco}: no free block ahead, locomotive stopped`);
       }
       return;
     }
+    // Keep the block already chosen while it is free, so turnouts do not flip back and forth.
+    const chosen = free.find((c) => c.id === run.next) || free[0];
+    run.next = chosen.id;
 
-    const tiles = this.getTiles();
-    const path = TrackCatalog.findPath(tiles, current, next);
-    if (!path) {
-      this.end(run, 'error', 'no track connection to the next block');
-      run.code = 'noConnection';
-      return;
-    }
     const byId = new Map(tiles.map((t) => [t.id, t]));
-    for (const [id, state] of Object.entries(path.turnouts)) {
+    for (const [id, state] of Object.entries(chosen.path.turnouts)) {
       const tile = byId.get(id);
       if (tile && tile.state !== state) await this.setTurnout(id, state);
     }
