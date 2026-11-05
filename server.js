@@ -257,7 +257,8 @@ const ruleEngine = new RuleEngine({
   getRules: () => settingsStore.getRules(),
   getTile: (id) => settingsStore.getTile(id),
   operate: operateTile,
-  setLocoSpeed: setBlockLocoSpeed
+  setLocoSpeed: setBlockLocoSpeed,
+  isBlockOccupied: (id) => Boolean(blocks.getLive()[id])
 });
 
 /* ---------- Block signalling ---------- */

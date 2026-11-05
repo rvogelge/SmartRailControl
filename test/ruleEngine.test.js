@@ -176,3 +176,31 @@ test('sanitizeRules keeps loco actions with block and speed 0..100', () => {
   const [r] = SettingsStore.sanitizeRules([rule({ actions: [{ type: 'loco', block: 'b1', speed: 250, delay: 2 }, { type: 'loco', block: '../x', speed: -5 }] })], tiles);
   assert.deepEqual(r.actions, [{ type: 'loco', block: 'b1', speed: 100, delay: 2 }, { type: 'loco', block: null, speed: 0, delay: 0 }]);
 });
+
+test('block condition: the rule runs only while the block is free (or occupied)', async () => {
+  const occupied = new Set(['b2']);
+  const calls = [];
+  const engine = new RuleEngine({
+    getRules: () => [
+      rule({ id: 'free', conditions: [{ type: 'block', block: 'b1', state: 'free' }] }),
+      rule({ id: 'busy', conditions: [{ type: 'block', block: 'b2', state: 'occupied' }] }),
+      rule({ id: 'notFree', conditions: [{ type: 'block', block: 'b2', state: 'free' }] }),
+      rule({ id: 'noBlock', conditions: [{ type: 'block', block: null, state: 'free' }] })
+    ],
+    getTile: (id) => tiles.find((t) => t.id === id) || null,
+    operate: async (tile, state) => {
+      calls.push([tile.id, state]);
+      return { sent: true };
+    },
+    isBlockOccupied: (id) => occupied.has(id),
+    wait: async () => {}
+  });
+  const result = engine.setSensor('c1', true);
+  await result.done;
+  assert.deepEqual(result.fired, ['free', 'busy']);
+});
+
+test('sanitizeRules keeps block conditions (free / occupied)', () => {
+  const [r] = SettingsStore.sanitizeRules([rule({ conditions: [{ type: 'block', block: 'b1', state: 'occupied' }, { type: 'block', block: 'b2', state: 'weird' }] })], tiles);
+  assert.deepEqual(r.conditions, [{ type: 'block', block: 'b1', state: 'occupied' }, { type: 'block', block: 'b2', state: 'free' }]);
+});

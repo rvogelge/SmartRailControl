@@ -174,7 +174,14 @@ const sanitizeRules = (input, tiles = [], routeIds = null) => {
       enabled: rule.enabled !== false,
       route,
       trigger,
-      conditions: items(rule.conditions, (c) => ref(c, 'a condition', 'condition', TrackCatalog.conditionStates, name)),
+      conditions: items(rule.conditions, (c) => {
+        // Block condition: a block is free or occupied.
+        if (c && c.type === 'block') {
+          const block = typeof c.block === 'string' && ID_PATTERN.test(c.block) ? c.block : null;
+          return { type: 'block', block, state: c.state === 'occupied' ? 'occupied' : 'free' };
+        }
+        return ref(c, 'a condition', 'condition', TrackCatalog.conditionStates, name);
+      }),
       actions: items(rule.actions, (a) => {
         const delay = Math.round(Math.max(0, Math.min(MAX_DELAY_S, Number(a && a.delay) || 0)) * 10) / 10;
         // Loco action: set the speed (% of its max speed) of the locomotive in a block.

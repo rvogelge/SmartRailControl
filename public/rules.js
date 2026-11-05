@@ -93,7 +93,11 @@ const currentState = (tile) => {
 };
 
 const ruleUses = (rule, id) =>
-  rule.trigger.device === id || rule.conditions.some((c) => c.device === id) || rule.actions.some((a) => a.device === id || a.block === id);
+  rule.trigger.device === id ||
+  rule.conditions.some((c) => c.device === id || c.block === id) ||
+  rule.actions.some((a) => a.device === id || a.block === id);
+
+const isBlockCondition = (condition) => condition.type === 'block';
 
 const isLocoAction = (action) => action.type === 'loco';
 const blockLabel = (id) => {
@@ -152,7 +156,11 @@ const ruleProblems = (rule) => {
     else if (!tileById(item.device)) problems.push(tr(`rules.${what.toLowerCase()}Removed`));
   };
   check(rule.trigger, 'Sensor');
-  rule.conditions.forEach((c) => check(c, 'Condition'));
+  rule.conditions.forEach((c) => {
+    if (!isBlockCondition(c)) check(c, 'Condition');
+    else if (!c.block) problems.push(tr('rules.chooseBlockCondition'));
+    else if (!state.blocks.some((b) => b.id === c.block)) problems.push(tr('rules.blockRemoved'));
+  });
   rule.actions.forEach((a) => {
     if (!isLocoAction(a)) check(a, 'Action');
     else if (!a.block) problems.push(tr('rules.chooseBlock'));
@@ -176,6 +184,7 @@ const summary = (rule) => {
       ? tr('rules.sumWhenSwitched', { name: nameOf(rule.trigger.device), state: stateLabel(sensor.type, rule.trigger.state) })
       : tr('rules.sumWhen', { sensor: nameOf(rule.trigger.device), state: tr(`sensorWord.${rule.trigger.state}`) });
   const conds = rule.conditions.map((c) => {
+    if (isBlockCondition(c)) return tr('rules.sumBlock', { block: c.block ? blockLabel(c.block) : '?', state: tr(`rules.block.${c.state}`) });
     const tile = tileById(c.device);
     return tr('rules.sumIs', { name: nameOf(c.device), state: tile ? stateLabel(tile.type, c.state) : c.state });
   });
@@ -323,8 +332,36 @@ const renderRule = (rule, index) => {
     switched ? el('span', { className: 'rule-word muted', text: tr('rules.byHand') }) : null
   );
 
-  const conditionRows = rule.conditions.map((c, i) =>
+  // Block selection shared by block conditions (and loco actions).
+  const blockSelect = (selected, field) =>
     el(
+      'select',
+      { 'data-field': field, 'aria-label': tr('rules.block') },
+      !selected ? el('option', { value: '', text: tr(state.blocks.length ? 'rules.chooseBlockOption' : 'rules.noBlocks'), selected: true }) : null,
+      selected && !state.blocks.some((b) => b.id === selected) ? el('option', { value: selected, text: tr('rules.removedBlock'), selected: true }) : null,
+      ...state.blocks.map((b) => el('option', { value: b.id, text: `B${b.number}`, selected: b.id === selected }))
+    );
+
+  const blockConditionRow = (c, i) =>
+    el(
+      'div',
+      { className: 'rule-row' },
+      el('span', { className: 'rule-kw and', text: tr(i === 0 ? 'rules.andIf' : 'rules.and') }),
+      el('span', { className: 'rule-word', text: tr('rules.block') }),
+      blockSelect(c.block, `conditions.${i}.block`),
+      el('span', { className: 'rule-word', text: tr('rules.is') }),
+      el(
+        'select',
+        { 'data-field': `conditions.${i}.state`, 'aria-label': tr('rules.state') },
+        ...['free', 'occupied'].map((s) => el('option', { value: s, text: tr(`rules.block.${s}`), selected: s === c.state }))
+      ),
+      removeButton(`conditions.${i}`, tr('rules.removeCondition'))
+    );
+
+  const conditionRows = rule.conditions.map((c, i) =>
+    isBlockCondition(c)
+      ? blockConditionRow(c, i)
+      : el(
       'div',
       { className: 'rule-row' },
       el('span', { className: 'rule-kw and', text: tr(i === 0 ? 'rules.andIf' : 'rules.and') }),
@@ -341,13 +378,7 @@ const renderRule = (rule, index) => {
       { className: 'rule-row' },
       el('span', { className: 'rule-kw then', text: tr(i === 0 ? 'rules.then' : 'rules.andThen') }),
       el('span', { className: 'rule-word', text: tr('rules.setSpeedOf') }),
-      el(
-        'select',
-        { 'data-field': `actions.${i}.block`, 'aria-label': tr('rules.block') },
-        !a.block ? el('option', { value: '', text: tr(state.blocks.length ? 'rules.chooseBlockOption' : 'rules.noBlocks'), selected: true }) : null,
-        a.block && !state.blocks.some((b) => b.id === a.block) ? el('option', { value: a.block, text: tr('rules.removedBlock'), selected: true }) : null,
-        ...state.blocks.map((b) => el('option', { value: b.id, text: `B${b.number}`, selected: b.id === a.block }))
-      ),
+      blockSelect(a.block, `actions.${i}.block`),
       el('span', { className: 'rule-word', text: tr('rules.to') }),
       el(
         'label',
@@ -414,7 +445,12 @@ const renderRule = (rule, index) => {
     ),
     triggerRow,
     ...conditionRows,
-    el('div', { className: 'rule-row add-row' }, el('button', { type: 'button', className: 'link-button', 'data-action': 'add-condition', text: tr('rules.addCondition') })),
+    el(
+      'div',
+      { className: 'rule-row add-row' },
+      el('button', { type: 'button', className: 'link-button', 'data-action': 'add-condition', text: tr('rules.addCondition') }),
+      el('button', { type: 'button', className: 'link-button', 'data-action': 'add-block-condition', text: tr('rules.addBlockCondition') })
+    ),
     ...actionRows,
     el(
       'div',
@@ -687,6 +723,8 @@ ui.ruleList.addEventListener('click', (event) => {
     const target = index + step;
     if (target < 0 || target >= rule.actions.length) return;
     [rule.actions[index], rule.actions[target]] = [rule.actions[target], rule.actions[index]];
+  } else if (button.dataset.action === 'add-block-condition') {
+    rule.conditions.push({ type: 'block', block: state.blocks.length ? state.blocks[0].id : null, state: 'free' });
   } else if (button.dataset.action === 'add-condition') {
     const device = firstDevice('condition');
     rule.conditions.push({ device: device ? device.id : null, state: device ? conditionStates(device.type)[0] : '' });

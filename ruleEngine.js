@@ -18,11 +18,20 @@ class RuleEngine {
   // operate(tile, state): switches an element, resolves to { sent, error }
   // setLocoSpeed(block id, percent): speed of the locomotive in a block,
   //   resolves to { sent, error, loco }
-  constructor({ getRules, getTile, operate, setLocoSpeed = async () => ({ sent: false, error: 'not available' }), wait = sleep }) {
+  // isBlockOccupied(block id): for block conditions
+  constructor({
+    getRules,
+    getTile,
+    operate,
+    setLocoSpeed = async () => ({ sent: false, error: 'not available' }),
+    isBlockOccupied = () => false,
+    wait = sleep
+  }) {
     this.getRules = getRules;
     this.getTile = getTile;
     this.operate = operate;
     this.setLocoSpeed = setLocoSpeed;
+    this.isBlockOccupied = isBlockOccupied;
     this.wait = wait;
     this.sensors = new Map(); // tile id -> true (on) / false (off)
     this.pulses = new Map(); // tile id -> timer of a manual press
@@ -102,9 +111,13 @@ class RuleEngine {
   }
 
   conditionsHold(rule) {
-    return rule.conditions.every(({ device, state }) => {
-      const tile = this.getTile(device);
-      return Boolean(tile) && this.stateOf(tile) === state;
+    return rule.conditions.every((condition) => {
+      if (condition.type === 'block') {
+        if (!condition.block) return false;
+        return Boolean(this.isBlockOccupied(condition.block)) === (condition.state === 'occupied');
+      }
+      const tile = this.getTile(condition.device);
+      return Boolean(tile) && this.stateOf(tile) === condition.state;
     });
   }
 
