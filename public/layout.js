@@ -1291,16 +1291,12 @@ const pollLive = async () => {
   }
 };
 
-// Secondary pages open in their own window next to the layout (they have no menu, only ✕).
-const openWindow = (path, name, width, height) => {
-  const win = window.open(path, name, `popup,width=${width},height=${height}`);
-  if (win) win.focus();
-  else location.href = path; // Popups blocked: open it here instead.
-};
-const openBlocksWindow = () => openWindow('/blocks.html', 'smartrailcontrol-blocks', 1100, 820);
+// Secondary pages open in panels inside the main window (panels.js): no address bar.
+const openPanel = (key) => window.SmartRailControl.openPanel(key);
+const openBlocksWindow = () => openPanel('blocks');
 window.SmartRailControl.blocks = openBlocksWindow;
-window.SmartRailControl.locos = () => openWindow('/locomotives.html', 'smartrailcontrol-locos', 980, 720);
-window.SmartRailControl.decoders = () => openWindow('/decoders.html', 'smartrailcontrol-decoders', 1100, 820);
+window.SmartRailControl.locos = () => openPanel('locos');
+window.SmartRailControl.decoders = () => openPanel('decoders');
 
 // The Blocks window highlights the blocks hovered there.
 if (typeof BroadcastChannel === 'function') {
@@ -1313,7 +1309,7 @@ if (typeof BroadcastChannel === 'function') {
   });
 }
 
-const openRulesWindow = () => openWindow('/rules.html', 'smartrailcontrol-rules', 1180, 820);
+const openRulesWindow = () => openPanel('rules');
 
 const placeTile = (cell) => {
   const fit = checkFit(state.tool, cell.x, cell.y, state.placeRotation);
@@ -1577,7 +1573,8 @@ ui.modeButtons.forEach((button) => {
 const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
 document.addEventListener('keydown', (event) => {
-  if (event.target.matches('input, select, textarea')) return;
+  // Keys in fields and in panels (panels.js) are not layout shortcuts.
+  if (event.target.matches('input, select, textarea') || event.target.closest('.app-panel')) return;
 
   // Zoom works in both modes.
   if (event.key === '+' || event.key === '=') {

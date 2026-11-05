@@ -2302,6 +2302,75 @@ body:not([data-mode='run']) .run-only {
   }
 }
 
+/* Panels in the main window for the secondary pages (panels.js) */
+.app-panel {
+  position: fixed;
+  /* Below the loco control window (9) and the top bar (10). */
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+  min-height: 240px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  resize: both;
+}
+
+.app-panel.front {
+  z-index: 8;
+}
+
+.app-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 14px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.app-panel.dragging .app-panel-head {
+  cursor: grabbing;
+}
+
+.app-panel-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.app-panel-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: var(--bg);
+}
+
+/* While dragging, the frame must not swallow the pointer. */
+.app-panel.dragging .app-panel-frame {
+  pointer-events: none;
+}
+
+@media (max-width: 760px) {
+  .app-panel {
+    inset: 64px 8px 8px 8px !important;
+    width: auto !important;
+    height: auto !important;
+    resize: none;
+  }
+}
+
+/* A secondary page inside a panel: the panel has the title and the ✕. */
+html.embedded .topbar {
+  display: none;
+}
+
 /* Secondary windows: ✕ top right instead of the burger menu */
 .window-close {
   font-size: 1.1rem;
