@@ -98,6 +98,7 @@ const ui = {
   zoomIn: $('zoomIn'),
   zoomOut: $('zoomOut'),
   zoomFit: $('zoomFit'),
+  throttleCard: $('throttleWindow'),
   zoomLabel: $('zoomLabel'),
   status: $('statusLine'),
   saveState: $('saveState'),
@@ -380,14 +381,19 @@ const paneHeight = () => {
 // Side by side (wide window, edit mode) the palette card ends where the layout card ends,
 // and its element list scrolls. On phones it sits above the layout at its natural height.
 const SIDE_BY_SIDE = window.matchMedia('(min-width: 761px)');
-const sizePalette = () => {
-  if (!ui.paletteCard) return;
-  if (SIDE_BY_SIDE.matches && state.mode === 'edit') {
-    const top = ui.paletteCard.getBoundingClientRect().top;
-    ui.paletteCard.style.height = `${Math.round(ui.boardCard.getBoundingClientRect().bottom - top)}px`;
+// The same for the loco control right of the layout in run mode.
+const sizeSideCard = (card, mode) => {
+  if (!card) return;
+  if (SIDE_BY_SIDE.matches && state.mode === mode) {
+    const top = card.getBoundingClientRect().top;
+    card.style.height = `${Math.round(ui.boardCard.getBoundingClientRect().bottom - top)}px`;
   } else {
-    ui.paletteCard.style.height = '';
+    card.style.height = '';
   }
+};
+const sizePalette = () => {
+  sizeSideCard(ui.paletteCard, 'edit');
+  sizeSideCard(ui.throttleCard, 'run');
 };
 
 const updateGrid = () => {

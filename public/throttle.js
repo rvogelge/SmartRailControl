@@ -1,5 +1,5 @@
 /* global t */
-// Locomotive control window: shown over the track layout in run mode.
+// Locomotive control: docked right of the track layout in run mode.
 // Locomotives are added and edited on the Locomotives page; this window only drives
 // them. It saves the driving state of the selected locomotive (speed, direction,
 // functions, light) and picks up changes to the list from the server.
@@ -8,16 +8,10 @@ const $ = (id) => document.getElementById(id);
 
 const FUNCTION_COUNT = 4;
 const MAX_SPEED = 126;
-const POSITION_KEY = 'smartrailcontrol.throttlePosition';
 const REFRESH_MS = 2000;
 
 const el = {
-  window: $('throttleWindow'),
-  handle: $('throttleHandle'),
-  close: $('throttleClose'),
   address: $('throttleAddress'),
-  topbar: document.querySelector('.topbar'),
-  open: $('throttleOpen'),
   select: $('locoSelect'),
   speed: $('speed'),
   speedValue: $('speedValue'),
@@ -33,23 +27,6 @@ const el = {
 const state = {
   controllers: [],
   activeId: null
-};
-
-const storage = {
-  get(key) {
-    try {
-      return localStorage.getItem(key);
-    } catch (_error) {
-      return null;
-    }
-  },
-  set(key, value) {
-    try {
-      localStorage.setItem(key, value);
-    } catch (_error) {
-      // Not remembered in this browser.
-    }
-  }
 };
 
 const normalize = (c) => {
@@ -305,83 +282,6 @@ const refresh = async () => {
   }
 };
 
-/* ---------- Window: show, hide, drag ---------- */
-
-const clampPosition = (left, top) => {
-  const rect = el.window.getBoundingClientRect();
-  const minTop = el.topbar ? el.topbar.getBoundingClientRect().bottom + 8 : 0;
-  return {
-    left: Math.max(0, Math.min(window.innerWidth - rect.width, left)),
-    top: Math.max(minTop, Math.min(window.innerHeight - Math.min(rect.height, 60), top))
-  };
-};
-
-const placeWindow = (left, top) => {
-  const pos = clampPosition(left, top);
-  el.window.style.left = `${pos.left}px`;
-  el.window.style.top = `${pos.top}px`;
-  el.window.style.right = 'auto';
-  el.window.style.bottom = 'auto';
-  return pos;
-};
-
-const restorePosition = () => {
-  try {
-    const saved = JSON.parse(storage.get(POSITION_KEY));
-    if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) placeWindow(saved.left, saved.top);
-  } catch (_error) {
-    // No saved position: keep the default corner from the stylesheet.
-  }
-};
-
-const openWindow = () => {
-  el.window.hidden = false;
-  if (el.open) el.open.setAttribute('aria-pressed', 'true');
-  restorePosition();
-};
-
-const closeWindow = () => {
-  el.window.hidden = true;
-  if (el.open) el.open.setAttribute('aria-pressed', 'false');
-};
-
-el.close.addEventListener('click', closeWindow);
-if (el.open) el.open.addEventListener('click', () => (el.window.hidden ? openWindow() : closeWindow()));
-
-// The window appears whenever run mode is selected and goes away in edit mode.
-window.addEventListener('modechange', (event) => {
-  if (event.detail.mode === 'run') openWindow();
-  else closeWindow();
-});
-
-let drag = null;
-el.handle.addEventListener('pointerdown', (event) => {
-  if (event.button !== 0 || event.target.closest('button')) return;
-  const rect = el.window.getBoundingClientRect();
-  drag = { dx: event.clientX - rect.left, dy: event.clientY - rect.top };
-  el.handle.setPointerCapture(event.pointerId);
-  el.window.classList.add('dragging');
-});
-el.handle.addEventListener('pointermove', (event) => {
-  if (drag) placeWindow(event.clientX - drag.dx, event.clientY - drag.dy);
-});
-const endDrag = () => {
-  if (!drag) return;
-  drag = null;
-  el.window.classList.remove('dragging');
-  const rect = el.window.getBoundingClientRect();
-  storage.set(POSITION_KEY, JSON.stringify({ left: rect.left, top: rect.top }));
-};
-el.handle.addEventListener('pointerup', endDrag);
-el.handle.addEventListener('pointercancel', endDrag);
-
-window.addEventListener('resize', () => {
-  if (!el.window.hidden && el.window.style.left) {
-    const rect = el.window.getBoundingClientRect();
-    placeWindow(rect.left, rect.top);
-  }
-});
-
 /* ---------- Startup ---------- */
 
 const init = async () => {
@@ -393,8 +293,6 @@ const init = async () => {
     setMessage(t('ctl.loadFailed', { msg: error.message }), 'error');
   }
   render();
-  // Run mode may already be active (it is chosen before this script finishes loading).
-  if (document.body.dataset.mode === 'run') openWindow();
 };
 
 window.addEventListener('languagechange', render);

@@ -62,9 +62,6 @@
             <button type="button" id="deleteButton" class="ghost small danger-text" data-i18n-attr="title:lay.removeTitle">Remove</button>
             <button type="button" id="checkButton" class="ghost small check-button" aria-controls="issuesPanel" data-i18n-attr="title:lay.checkTitle">✓ Check</button>
           </div>
-          <div class="toolbar-group run-only">
-            <button type="button" id="throttleOpen" class="ghost small" data-i18n="ctl.openWindow" data-i18n-attr="title:ctl.openWindowTitle">🚂 Loco control</button>
-          </div>
           <div class="toolbar-group">
             <button type="button" id="rulesButton" class="ghost small" data-i18n="lay.rules" data-i18n-attr="title:lay.rulesTitle">⚡ Logic rules</button>
             <button type="button" id="blocksButton" class="ghost small" data-i18n="lay.blocks" data-i18n-attr="title:lay.blocksTitle">▤ Blocks</button>
@@ -111,48 +108,48 @@
 
         <p id="statusLine" class="response" aria-live="polite" data-i18n="common.ready">Ready.</p>
       </section>
+
+      <section id="throttleWindow" class="card throttle-window run-only" aria-labelledby="throttleTitle">
+        <div class="tw-head">
+          <h2><span id="throttleTitle" data-i18n="ctl.window">Locomotive</span><span id="throttleAddress" class="tw-address"></span></h2>
+        </div>
+
+        <div class="tw-select">
+          <select id="locoSelect" aria-label="Select locomotive" data-i18n-attr="aria-label:ctl.selectLoco"></select>
+        </div>
+
+        <div class="tw-speed">
+          <output id="speedValue" for="speed">0</output>
+          <span id="directionBadge" class="direction-badge">Forward</span>
+        </div>
+
+        <div class="tw-drive">
+          <input id="speed" class="speed-slider vertical" type="range" min="0" max="126" step="1" value="0" aria-label="Speed" aria-orientation="vertical" data-i18n-attr="aria-label:ctl.speed" />
+          <div id="functionButtons" class="tw-functions" role="group" aria-label="Functions" data-i18n-attr="aria-label:ctl.functions">
+            <button type="button" id="lightButton" class="fn-button fn-light" aria-pressed="false" title="Light (F0)" data-i18n-attr="title:ctl.lightTitle"><span aria-hidden="true">💡</span> F0</button>
+            <button type="button" class="fn-button" data-function="0" aria-pressed="false">F1</button>
+            <button type="button" class="fn-button" data-function="1" aria-pressed="false">F2</button>
+            <button type="button" class="fn-button" data-function="2" aria-pressed="false">F3</button>
+            <button type="button" class="fn-button" data-function="3" aria-pressed="false">F4</button>
+          </div>
+        </div>
+
+        <div id="directionSwitch" class="segmented tw-direction" role="radiogroup" aria-label="Direction" data-i18n-attr="aria-label:ctl.direction">
+          <button type="button" class="segment" data-direction="reverse" role="radio" aria-checked="false" aria-label="Reverse" title="Reverse" data-i18n-attr="aria-label:ctl.reverse; title:ctl.reverse">◀</button>
+          <button type="button" class="segment" data-direction="forward" role="radio" aria-checked="true" aria-label="Forward" title="Forward" data-i18n-attr="aria-label:ctl.forward; title:ctl.forward">▶</button>
+        </div>
+
+        <div class="tw-actions">
+          <button type="button" id="stopButton" class="stop" data-i18n="ctl.stop">Stop</button>
+          <button type="button" id="emergencyButton" class="emergency" data-i18n="ctl.emergency">Emergency stop</button>
+        </div>
+
+        <p id="responseBox" class="response tw-response" aria-live="polite"></p>
+      </section>
     </main>
 
     <div id="blockMenu" class="block-menu" role="menu" hidden></div>
 
-    <section id="throttleWindow" class="throttle-window" aria-labelledby="throttleTitle" hidden>
-      <div class="tw-head" id="throttleHandle">
-        <h2><span id="throttleTitle" data-i18n="ctl.window">Locomotive</span><span id="throttleAddress" class="tw-address"></span></h2>
-        <button type="button" id="throttleClose" class="icon-button small-x" aria-label="Close" title="Close" data-i18n-attr="aria-label:common.close; title:common.close">✕</button>
-      </div>
-
-      <div class="tw-select">
-        <select id="locoSelect" aria-label="Select locomotive" data-i18n-attr="aria-label:ctl.selectLoco"></select>
-      </div>
-
-      <div class="tw-speed">
-        <output id="speedValue" for="speed">0</output>
-        <span id="directionBadge" class="direction-badge">Forward</span>
-      </div>
-
-      <div class="tw-drive">
-        <input id="speed" class="speed-slider vertical" type="range" min="0" max="126" step="1" value="0" aria-label="Speed" aria-orientation="vertical" data-i18n-attr="aria-label:ctl.speed" />
-        <div id="functionButtons" class="tw-functions" role="group" aria-label="Functions" data-i18n-attr="aria-label:ctl.functions">
-          <button type="button" id="lightButton" class="fn-button fn-light" aria-pressed="false" title="Light (F0)" data-i18n-attr="title:ctl.lightTitle"><span aria-hidden="true">💡</span> F0</button>
-          <button type="button" class="fn-button" data-function="0" aria-pressed="false">F1</button>
-          <button type="button" class="fn-button" data-function="1" aria-pressed="false">F2</button>
-          <button type="button" class="fn-button" data-function="2" aria-pressed="false">F3</button>
-          <button type="button" class="fn-button" data-function="3" aria-pressed="false">F4</button>
-        </div>
-      </div>
-
-      <div id="directionSwitch" class="segmented tw-direction" role="radiogroup" aria-label="Direction" data-i18n-attr="aria-label:ctl.direction">
-        <button type="button" class="segment" data-direction="reverse" role="radio" aria-checked="false" aria-label="Reverse" title="Reverse" data-i18n-attr="aria-label:ctl.reverse; title:ctl.reverse">◀</button>
-        <button type="button" class="segment" data-direction="forward" role="radio" aria-checked="true" aria-label="Forward" title="Forward" data-i18n-attr="aria-label:ctl.forward; title:ctl.forward">▶</button>
-      </div>
-
-      <div class="tw-actions">
-        <button type="button" id="stopButton" class="stop" data-i18n="ctl.stop">Stop</button>
-        <button type="button" id="emergencyButton" class="emergency" data-i18n="ctl.emergency">Emergency stop</button>
-      </div>
-
-      <p id="responseBox" class="response tw-response" aria-live="polite"></p>
-    </section>
 
     <dialog id="settingsDialog" class="dialog settings-dialog">
       <div class="dialog-body">

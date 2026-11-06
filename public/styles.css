@@ -1281,10 +1281,6 @@ body[data-mode='run'] .edit-only {
   display: none;
 }
 
-body[data-mode='run'] .layout-editor {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .board[data-mode='run'] {
   cursor: default;
 }
@@ -2121,34 +2117,20 @@ body:not([data-mode='run']) .run-only {
   display: none;
 }
 
-#throttleOpen[aria-pressed='true'] {
-  background: var(--accent-soft);
-  border-color: rgba(79, 179, 255, 0.45);
+/* Locomotive control: docked right of the layout in run mode. layout.js gives it the
+   layout card's height; if it needs more, it scrolls. */
+body[data-mode='run'] .layout-editor {
+  grid-template-columns: minmax(0, 1fr) 236px;
 }
 
-/* Locomotive control window (floats over the layout in run mode) */
 .throttle-window {
-  position: fixed;
-  /* Below the toolbar, so the zoom buttons stay reachable. */
-  top: 170px;
-  right: 20px;
-  /* Below the top bar, so the burger menu opens over the window. */
-  z-index: 9;
   display: grid;
+  align-content: start;
   gap: 12px;
-  width: 216px;
-  /* Never taller than the space below the top bar, so the title bar stays reachable. */
-  max-height: calc(100vh - 96px);
+  min-width: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0 14px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
-
-.throttle-window[hidden] {
-  display: none;
 }
 
 .tw-head {
@@ -2156,15 +2138,8 @@ body:not([data-mode='run']) .run-only {
   align-items: center;
   justify-content: space-between;
   margin: 0 -14px;
-  padding: 8px 8px 8px 14px;
+  padding: 12px 14px 10px;
   border-bottom: 1px solid var(--border);
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-}
-
-.throttle-window.dragging .tw-head {
-  cursor: grabbing;
 }
 
 .tw-address {
@@ -2291,10 +2266,9 @@ body:not([data-mode='run']) .run-only {
 }
 
 @media (max-width: 760px) {
-  .throttle-window {
-    top: auto;
-    right: 16px;
-    bottom: 16px;
+  /* Phones: the loco control sits below the layout. */
+  body[data-mode='run'] .layout-editor {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .speed-slider.vertical {
