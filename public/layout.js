@@ -1372,6 +1372,60 @@ const nudge = (dx, dy) => {
   if (applyGroup(shifted(tiles, dx, dy), tr('lay.cannotMove'))) render();
 };
 
+/* ---------- Copy & paste ---------- */
+
+// Copied elements, relative to the top left of the copied group.
+let clipboard = [];
+
+const copySelection = ({ cut = false } = {}) => {
+  const tiles = selectedTiles();
+  if (tiles.length === 0) return;
+  const minX = Math.min(...tiles.map((t) => t.x));
+  const minY = Math.min(...tiles.map((t) => t.y));
+  clipboard = tiles.map((t) => ({ ...t, x: t.x - minX, y: t.y - minY }));
+  clipboard.origin = { x: minX, y: minY };
+  if (cut) {
+    removeTiles(tiles.map((t) => t.id));
+    render();
+  }
+  setStatus(tr(cut ? 'lay.cutN' : 'lay.copiedN', { n: tiles.length }));
+};
+
+// Copies get new ids and no decoder addresses (an address belongs to one element).
+const pastedTiles = (x, y) =>
+  clipboard.map((t) => {
+    const copy = { ...t, id: newId(), x: t.x + x, y: t.y + y };
+    delete copy.invert;
+    if (Array.isArray(copy.addresses)) copy.addresses = copy.addresses.map(() => null);
+    return copy;
+  });
+
+// Pastes at the square under the pointer, else at the first free place next to the
+// copied elements' place.
+const paste = () => {
+  if (clipboard.length === 0) {
+    setStatus(tr('lay.clipboardEmpty'));
+    return;
+  }
+  const origin = clipboard.origin || { x: 0, y: 0 };
+  const candidates = [];
+  if (state.hoverCell) candidates.push([state.hoverCell.x, state.hoverCell.y]);
+  for (let d = 1; d <= 60; d += 1) {
+    candidates.push([origin.x + d, origin.y + d], [origin.x, origin.y + d], [origin.x + d, origin.y]);
+  }
+  const fits = candidates.map(([x, y]) => pastedTiles(x, y)).find((tiles) => checkGroupFit(tiles).ok);
+  if (!fits) {
+    setStatus(tr('lay.noRoomPaste'), 'error');
+    return;
+  }
+  state.tiles.push(...fits);
+  state.selection = new Set(fits.map((t) => t.id));
+  setTool('select');
+  scheduleSave();
+  render();
+  setStatus(tr('lay.pastedN', { n: fits.length }), 'ok');
+};
+
 /* ---------- Pointer interaction ---------- */
 
 const hasModifier = (event) => event.shiftKey || event.ctrlKey || event.metaKey;
@@ -1604,6 +1658,19 @@ document.addEventListener('keydown', (event) => {
     state.selection = new Set(state.tiles.map((t) => t.id));
     render();
     setStatus(tr('lay.nSelected', { n: state.selection.size }));
+  } else if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C')) {
+    if (state.selection.size > 0) {
+      event.preventDefault();
+      copySelection();
+    }
+  } else if ((event.ctrlKey || event.metaKey) && (event.key === 'x' || event.key === 'X')) {
+    if (state.selection.size > 0) {
+      event.preventDefault();
+      copySelection({ cut: true });
+    }
+  } else if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V')) {
+    event.preventDefault();
+    paste();
   } else if (ARROWS[event.key] && state.selection.size > 0) {
     event.preventDefault();
     nudge(...ARROWS[event.key]);
