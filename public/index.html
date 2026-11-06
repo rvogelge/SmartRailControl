@@ -57,6 +57,9 @@
             <button type="button" class="segment" data-mode="edit" role="radio" aria-checked="true" title="Edit layout (E)" data-i18n="lay.edit" data-i18n-attr="title:lay.editTitle">✎ Edit</button>
             <button type="button" class="segment" data-mode="run" role="radio" aria-checked="false" title="Run mode (E)" data-i18n="lay.run" data-i18n-attr="title:lay.runTitle">▶ Run</button>
           </div>
+          <div class="toolbar-group run-only">
+            <button type="button" id="powerButton" class="power-button unknown" aria-pressed="false" data-i18n-attr="title:pw.unknownTitle"><span class="power-dot" aria-hidden="true"></span><span id="powerLabel">…</span></button>
+          </div>
           <div class="toolbar-group edit-only">
             <button type="button" id="rotateButton" class="ghost small" data-i18n="lay.rotate" data-i18n-attr="title:lay.rotateTitle">⟳ Rotate</button>
             <button type="button" id="deleteButton" class="ghost small danger-text" data-i18n-attr="title:lay.removeTitle">Remove</button>

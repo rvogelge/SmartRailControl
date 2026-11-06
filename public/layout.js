@@ -81,6 +81,8 @@ const MODE_KEY = 'smartrailcontrol.layoutMode';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
+  powerButton: $('powerButton'),
+  powerLabel: $('powerLabel'),
   palette: $('palette'),
   board: $('board'),
   boardCard: document.querySelector('.board-card'),
@@ -1286,6 +1288,7 @@ const pollLive = async () => {
       changed = true;
     }
     if (applyS88(live)) changed = true;
+    renderPower(live.power);
     state.tiles.forEach((tile) => {
       const next = live.states[tile.id];
       if (next !== undefined && next !== tile.state) {
@@ -1298,6 +1301,48 @@ const pollLive = async () => {
     // Server not reachable: try again on the next tick.
   }
 };
+
+/* ---------- Track power (Go / Stop) ---------- */
+
+// on: true = Go (green), false = Stop (red), null = unknown (grey).
+let powerOn = null;
+let powerBusy = false;
+const renderPower = (power) => {
+  if (!ui.powerButton) return;
+  if (power && !powerBusy) powerOn = typeof power.on === 'boolean' ? power.on : null;
+  const kind = powerOn === true ? 'on' : powerOn === false ? 'off' : 'unknown';
+  ui.powerButton.classList.remove('on', 'off', 'unknown');
+  ui.powerButton.classList.add(kind);
+  ui.powerButton.setAttribute('aria-pressed', String(powerOn === true));
+  ui.powerButton.title = tr(`pw.${kind}Title`);
+  ui.powerLabel.textContent = tr(`pw.${kind}`);
+};
+
+const togglePower = async () => {
+  if (powerBusy) return;
+  const on = powerOn !== true;
+  powerBusy = true;
+  ui.powerButton.disabled = true;
+  try {
+    const response = await fetch('/api/power', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ on })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Request failed.');
+    powerOn = typeof data.power.on === 'boolean' ? data.power.on : on;
+    setStatus(tr(powerOn ? 'pw.wentOn' : 'pw.wentOff'), 'ok');
+  } catch (error) {
+    setStatus(tr('pw.failed', { msg: error.message }), 'error');
+  } finally {
+    powerBusy = false;
+    ui.powerButton.disabled = false;
+    renderPower();
+  }
+};
+if (ui.powerButton) ui.powerButton.addEventListener('click', togglePower);
+window.addEventListener('languagechange', () => renderPower());
 
 // Secondary pages open in panels inside the main window (panels.js): no address bar.
 const openPanel = (key) => window.SmartRailControl.openPanel(key);

@@ -2786,3 +2786,52 @@ html.embedded .topbar {
     display: block;
   }
 }
+
+/* Track power (Intellibox Go / Stop) in run mode: green = on, red = off. */
+.power-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 84px;
+  justify-content: center;
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fff;
+  cursor: pointer;
+}
+
+.power-button .power-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+.power-button.on {
+  background: #1f9d5c;
+  border-color: var(--ok);
+}
+
+.power-button.off {
+  background: #c93a3a;
+  border-color: var(--danger);
+}
+
+.power-button.unknown {
+  background: var(--surface-3);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.power-button:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.power-button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}

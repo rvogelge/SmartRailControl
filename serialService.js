@@ -21,6 +21,12 @@ const P50X_XTRNT = 0x90;
 const P50X_XSENSOR = 0x98; // read one s88 module
 const P50X_XEVENT = 0xc8; // which kinds of events are pending
 const P50X_XEVTSEN = 0xcb; // s88 modules that changed
+const P50X_XSTATUS = 0xa2; // one status byte, bit 3 = track power on (Go)
+const P50X_XSTOP = 0xa6; // track power off (Stop)
+const P50X_XGO = 0xa7; // track power on (Go)
+const P50X_STATUS_GO = 0x08;
+const P50_GO = 0x60; // legacy P50: no reply
+const P50_STOP = 0x61;
 const P50_S88_READ = 0x80; // legacy P50: 0x80 + n reads modules 1..n (2 bytes each)
 const MAX_S88_MODULES = 31;
 // A reply that does not arrive within this time is given up and the input is resynced.
@@ -324,6 +330,31 @@ class SerialService {
     const n = Math.max(1, Math.min(MAX_S88_MODULES, count));
     const reply = await this.request([P50_S88_READ + n], fixedReply(2 * n), { label: `s88 read 1-${n}`, quiet: true });
     return Array.from({ length: n }, (_v, i) => ({ module: i + 1, bytes: [reply[2 * i], reply[2 * i + 1]] }));
+  }
+
+  /* ---------- Track power (Go / Stop) ---------- */
+
+  // P50X: true = track power on (Go), false = off (Stop). P50 cannot tell: null.
+  async readPower() {
+    if (this.protocol === 'P50') return null;
+    const reply = await this.request([P50X_PREFIX, P50X_XSTATUS], REPLY_READERS.status, { label: 'XStatus', quiet: true });
+    return Boolean(reply[0] & P50X_STATUS_GO);
+  }
+
+  // Switches the track power on (Go) or off (Stop).
+  async setPower(on) {
+    if (this.disabled) throw new Error('Serial output is disabled.');
+    if (!this.isOpen()) throw new Error(`Serial port ${this.portName} is not open.`);
+    if (this.protocol === 'P50') {
+      await this.write([on ? P50_GO : P50_STOP], { label: on ? 'Go' : 'Stop' });
+      return { ok: true };
+    }
+    const label = on ? 'XGo' : 'XStop';
+    const reply = await this.request([P50X_PREFIX, on ? P50X_XGO : P50X_XSTOP], REPLY_READERS.status, { label });
+    if (reply[0] !== P50X_STATUS_OK) {
+      throw new Error(`${label}: ${P50X_REPLIES[reply[0]] || `reply 0x${reply[0].toString(16)}`}`);
+    }
+    return { ok: true };
   }
 
   getStatus() {

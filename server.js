@@ -413,6 +413,41 @@ if (!['0', 'false', 'no', 'off'].includes(String(process.env.S88_FEEDBACK || '')
   feedback.start();
 }
 
+/* ---------- Track power (Intellibox Go / Stop) ---------- */
+
+// Read once a second: the power can also be switched on the Intellibox itself, or go off
+// after a short circuit. on: true (Go) | false (Stop) | null (unknown).
+const POWER_POLL_MS = 1000;
+const power = { on: null, error: null };
+const readPower = async () => {
+  if (!serialService.isOpen()) {
+    power.on = null;
+    return;
+  }
+  try {
+    const on = await serialService.readPower();
+    if (on !== null && power.on !== null && on !== power.on) console.log(`[power] Intellibox ${on ? 'Go' : 'Stop'}`);
+    power.on = on;
+    power.error = null;
+  } catch (error) {
+    power.error = error.message;
+  }
+};
+setInterval(readPower, POWER_POLL_MS).unref();
+
+app.post('/api/power', async (req, res) => {
+  const on = Boolean(req.body && req.body.on);
+  try {
+    await serialService.setPower(on);
+    console.log(`[power] ${on ? 'Go' : 'Stop'} (by click)`);
+    await readPower();
+    if (power.on === null) power.on = on; // P50: no status to read back
+    return res.json({ ok: true, power });
+  } catch (error) {
+    return res.status(500).json({ error: error.message, power });
+  }
+});
+
 // Run mode: operate a layout element by hand (click). The browser sends only the element
 // id and the new state. Rules triggered by this element in that state run.
 app.post('/api/layout/operate', async (req, res) => {
@@ -472,6 +507,7 @@ app.get('/api/live', (_req, res) => {
     feedback: feedback.getStatus(),
     blocks: blocks.getLive(),
     blockNumbers: blockNumbers(),
+    power,
     s88: { events: s88Events, contactsOn: [...contactsOn].sort((a, b) => a - b) }
   });
 });

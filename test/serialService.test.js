@@ -119,3 +119,27 @@ test('the light (F0) is part of every locomotive command', () => {
   assert.deepEqual(service.buildLegacyP50LocomotivePacket({ decoderId: 3, speed: 126, direction: 'forward', light: true }), [0x1e, 0x03]);
   delete process.env.SMARTRAILCONTROL_SERIAL_DISABLED;
 });
+
+test('track power: XGo / XStop and the power bit of XStatus', async () => {
+  const service = createService();
+  service.connected = true;
+  const writes = [];
+  const replies = { 0xa7: [0x00], 0xa6: [0x00], 0xa2: [0x08] };
+  service.connection = {
+    isOpen: true,
+    write: (buffer, callback) => {
+      writes.push([...buffer]);
+      callback();
+      setImmediate(() => service.handleData(replies[buffer[1]]));
+    }
+  };
+  await service.setPower(true);
+  await service.setPower(false);
+  assert.equal(await service.readPower(), true);
+  replies[0xa2] = [0x00];
+  assert.equal(await service.readPower(), false);
+  assert.deepEqual(writes, [[0x58, 0xa7], [0x58, 0xa6], [0x58, 0xa2], [0x58, 0xa2]]);
+
+  replies[0xa7] = [0x06];
+  await assert.rejects(service.setPower(true), /XGo/);
+});
