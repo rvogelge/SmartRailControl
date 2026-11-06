@@ -1,5 +1,5 @@
 /* global I18n */
-// Panels inside the main window for the secondary pages (Logic rules, Blocks,
+// Panels inside the main window for the secondary pages (Operating Rules, Blocks,
 // Locomotives, Decoder test): a title bar to drag, ✕ to close, a corner to resize.
 // The page itself runs in a frame and hides its own header there (window.js).
 // Browsers always show the address bar in pop-up windows; panels have none.

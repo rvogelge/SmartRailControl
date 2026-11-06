@@ -131,7 +131,7 @@
       'common.close': 'Close',
       'title.control': 'SmartRailControl',
       'title.layout': 'SmartRailControl – Track layout',
-      'title.rules': 'SmartRailControl – Logic rules',
+      'title.rules': 'SmartRailControl – Operating Rules',
 
       // Control page
       'ctl.controllers': 'Controllers',
@@ -198,7 +198,7 @@
       'set.languageHint': 'Applies to all pages and all browsers.',
       'set.languageSaved': 'Language saved.',
       'set.data': 'Data storage',
-      'set.dataHint': 'Controllers, track layout, logic rules and these settings are kept in one file.',
+      'set.dataHint': 'Controllers, track layout, operating rules and these settings are kept in one file.',
       'set.dataFile': 'Data file',
       'set.dataChange': 'Change folder…',
       'set.dataEnv': 'Set by SMARTRAILCONTROL_SETTINGS_FILE. Remove that variable to choose a folder here.',
@@ -243,8 +243,8 @@
       'lay.check': '✓ Check',
       'lay.checkTitle': 'Check decoder addresses',
       'lay.conflicts': plural('⚠ {n} address conflict', '⚠ {n} address conflicts'),
-      'lay.rules': '⚡ Logic rules',
-      'lay.rulesTitle': 'Open the logic rules editor in a separate window',
+      'lay.rules': '⚡ Operating Rules',
+      'lay.rulesTitle': 'Open the operating rules editor in a separate window',
       'lay.zoom': 'Zoom',
       'lay.zoomOut': 'Zoom out (−)',
       'lay.zoomIn': 'Zoom in (+)',
@@ -333,8 +333,8 @@
       'space.accessory': 'accessory address',
       'space.feedback': 'contact no.',
 
-      // Logic rules
-      'rules.title': 'Logic rules',
+      // Operating Rules
+      'rules.title': 'Operating Rules',
       'rules.devices': 'Devices',
       'rules.hint': 'All switchable elements and contact tracks of the layout. Click a device to show only the rules that use it. Contacts follow the s88 feedback modules. Click a contact\'s <strong>on/off</strong> chip to press it: it is on for 2 seconds, then off again, so you can test your rules without a train.',
       'rules.rules': 'Rules',
@@ -564,7 +564,7 @@
       'common.close': 'Schließen',
       'title.control': 'SmartRailControl',
       'title.layout': 'SmartRailControl – Gleisplan',
-      'title.rules': 'SmartRailControl – Logikregeln',
+      'title.rules': 'SmartRailControl – Betriebsregeln',
 
       'ctl.controllers': 'Fahrregler',
       'ctl.add': '+ Neu',
@@ -629,7 +629,7 @@
       'set.languageHint': 'Gilt für alle Seiten und alle Browser.',
       'set.languageSaved': 'Sprache gespeichert.',
       'set.data': 'Datenspeicher',
-      'set.dataHint': 'Fahrregler, Gleisplan, Logikregeln und diese Einstellungen liegen in einer Datei.',
+      'set.dataHint': 'Fahrregler, Gleisplan, Betriebsregeln und diese Einstellungen liegen in einer Datei.',
       'set.dataFile': 'Datendatei',
       'set.dataChange': 'Ordner ändern…',
       'set.dataEnv': 'Durch SMARTRAILCONTROL_SETTINGS_FILE festgelegt. Entferne diese Variable, um hier einen Ordner zu wählen.',
@@ -673,8 +673,8 @@
       'lay.check': '✓ Prüfen',
       'lay.checkTitle': 'Decoder-Adressen prüfen',
       'lay.conflicts': plural('⚠ {n} Adresskonflikt', '⚠ {n} Adresskonflikte'),
-      'lay.rules': '⚡ Logikregeln',
-      'lay.rulesTitle': 'Logikregeln in einem eigenen Fenster bearbeiten',
+      'lay.rules': '⚡ Betriebsregeln',
+      'lay.rulesTitle': 'Betriebsregeln in einem eigenen Fenster bearbeiten',
       'lay.zoom': 'Zoom',
       'lay.zoomOut': 'Verkleinern (−)',
       'lay.zoomIn': 'Vergrößern (+)',
@@ -763,7 +763,7 @@
       'space.accessory': 'Zubehöradresse',
       'space.feedback': 'Kontakt-Nr.',
 
-      'rules.title': 'Logikregeln',
+      'rules.title': 'Betriebsregeln',
       'rules.devices': 'Geräte',
       'rules.hint': 'Alle schaltbaren Elemente und Kontaktgleise des Gleisplans. Ein Klick auf ein Gerät zeigt nur die Regeln, die es verwenden. Kontakte folgen den s88-Rückmeldemodulen. Ein Klick auf die Schaltfläche <strong>ein/aus</strong> eines Kontakts löst ihn aus: er ist 2 Sekunden ein und dann wieder aus, so lassen sich Regeln ohne Zug testen.',
       'rules.rules': 'Regeln',

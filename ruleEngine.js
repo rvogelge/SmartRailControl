@@ -5,7 +5,7 @@ const MAX_LOG = 50;
 const PULSE_MS = 2000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Runs the logic rules. Triggers: sensors (contact tracks) report on/off, and switchable
+// Runs the operating rules. Triggers: sensors (contact tracks) report on/off, and switchable
 // elements (turnouts, signals) switched by hand report their new state. Every enabled
 // rule whose trigger matches and whose conditions all hold runs its actions in order.
 // Sensor states live in memory only (they describe the track right now, not the

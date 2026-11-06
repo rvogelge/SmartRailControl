@@ -265,7 +265,7 @@
   const sensorStatesOf = (type) => (TYPES[type] && TYPES[type].sensorStates) || null;
   const isMomentary = (type) => Boolean(TYPES[type] && TYPES[type].momentary);
 
-  // Logic rules: what each element can be used for and which states apply.
+  // Operating Rules: what each element can be used for and which states apply.
   // A sensor can start a rule, a condition can test any element with a state,
   // an action can switch any element that has commands.
   // Triggers: contacts (on / off), and switchable elements switched by hand (their states).

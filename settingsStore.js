@@ -118,7 +118,7 @@ const sanitizeLayout = (input) => {
   return { cols, rows, tiles: sanitizedTiles };
 };
 
-/* ---------- Logic rules ---------- */
+/* ---------- Operating Rules ---------- */
 
 const MAX_RULES = 200;
 const MAX_RULE_ITEMS = 20;
@@ -210,7 +210,7 @@ const createController = (overrides = {}) => ({
   ...overrides
 });
 
-// Routes (Fahrstraßen): named groups of logic rules that are switched on and off
+// Routes (Fahrstraßen): named groups of operating rules that are switched on and off
 // together. A rule belongs to one route at most (rule.route). Older saves (with block
 // steps) keep their id and name.
 const MAX_ROUTES = 50;

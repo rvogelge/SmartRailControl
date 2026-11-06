@@ -11,7 +11,7 @@ SmartRailControl is a small Raspberry Pi web app for controlling a model railway
 - Controllers, layout, rules and settings are stored on the Pi in one file (default `data/settings.json`, folder selectable), so every browser sees the same setup and it survives restarts
 - Track layout editor to draw a simple track plan on a square grid
 - Decoder test page (menu → *Decoder test*): switch any accessory address red/green to find out which turnout, signal or uncoupler it drives, see which layout element uses it, and keep a note per address. Accessory decoders only receive commands, so the Intellibox cannot list which ones are connected.
-- Logic rules editor in a separate window ("if contact 5 turns on, set turnout 12 to diverging"), run by the server. A rule is triggered by a contact track, or by a turnout or signal switched by click; actions switch elements or set the speed (% of its max speed) of the locomotive in a block. Rules can be grouped into routes (Fahrstraßen), and a route's switch turns all of its rules on or off
+- Operating Rules editor in a separate window ("if contact 5 turns on, set turnout 12 to diverging"), run by the server. A rule is triggered by a contact track, or by a turnout or signal switched by click; actions switch elements or set the speed (% of its max speed) of the locomotive in a block. Rules can be grouped into routes (Fahrstraßen), and a route's switch turns all of its rules on or off
 - Block signalling: a contact track can start a block (edit mode → *Block start* → right / left; an arrow in the symbol shows the direction). A block runs in arrow direction up to the next block-start contact or turnout (turnouts belong to no block; a train leaving over a turnout still frees its block and takes its name along when it reaches the next block-start contact). When the contact fires, its block turns light red as occupied, the block the train came from becomes free, and the locomotive name moves along. If several occupied blocks lead into it, the one whose locomotive is running (speed > 0) is freed, whatever the turnout positions; a locomotive can be in one block only; it is shown on the middle straight track of the block. In run mode, click a track of a block to occupy it with a locomotive, as unknown train, or to free it.
 - Blocks page (menu → *Blocks*, or ▤ Blocks in the layout toolbar for its own window): every block found from the block-start contacts gets a stable number (B1, B2, …), shown with its start contact, the blocks it leads to and its occupancy, and on the track right after its start contact; hovering a block highlights its tracks in the layout
 - Actor decoder addresses (turnouts, signals, uncouplers) can be marked *inverted* when a drive switches the opposite way
@@ -74,7 +74,7 @@ Environment variables:
 Open it with **Settings** in the burger menu (or click the status chip).
 
 - **Interface:** serial port and baud rate, applied with *Apply interface*.
-- **Language:** English or Deutsch. The choice is saved on the server, so it applies to all pages and all browsers; other open windows (layout, logic rules) switch right away. Error messages that come from the server stay in English.
+- **Language:** English or Deutsch. The choice is saved on the server, so it applies to all pages and all browsers; other open windows (layout, operating rules) switch right away. Error messages that come from the server stay in English.
 - **Data storage:** shows the data file and whether it is persistent:
   - *on disk* — normal installation,
   - *on a mounted volume* — container with a volume, survives re-creating the container,
@@ -125,9 +125,9 @@ Track geometry: elements connect at the edge midpoints of a square and, for 45°
 
 The layout is saved automatically in `data/settings.json`.
 
-## Logic rules
+## Operating Rules
 
-Click **⚡ Logic rules** in the layout toolbar to open the rules editor in a separate window (`/rules.html`). The left side lists every device of the layout — contact tracks (sensors), turnouts, signals and uncouplers — with decoder address, position, live state and how many rules use it. Click a device to show only the rules that use it.
+Click **⚡ Operating Rules** in the layout toolbar to open the rules editor in a separate window (`/rules.html`). The left side lists every device of the layout — contact tracks (sensors), turnouts, signals and uncouplers — with decoder address, position, live state and how many rules use it. Click a device to show only the rules that use it.
 
 A rule reads like a sentence:
 
@@ -180,14 +180,14 @@ In run mode, switching a turnout, three-way turnout, crossover switch or signal,
 | Crossover switch | straight → green, turning → red |
 | Uncoupler | short pulse on green |
 
-The new state is saved even if the command could not be sent (no address, serial port not open); the status line then says *not sent* and why. Each command and the Intellibox reply are logged in the terminal (`[Intellibox TX]` / `[Intellibox RX]`). Contact tracks are inputs and send nothing; clicking one in run mode presses it for 2 seconds to test the logic rules.
+The new state is saved even if the command could not be sent (no address, serial port not open); the status line then says *not sent* and why. Each command and the Intellibox reply are logged in the terminal (`[Intellibox TX]` / `[Intellibox RX]`). Contact tracks are inputs and send nothing; clicking one in run mode presses it for 2 seconds to test the operating rules.
 
 ## File overview
 
 - `server.js` – HTTP server and API endpoints
 - `serialService.js` – serial device wrapper and packet builder
-- `settingsStore.js` – stores controllers, interface settings, layout and logic rules in `data/settings.json`
-- `ruleEngine.js` – runs the logic rules when a sensor changes
+- `settingsStore.js` – stores controllers, interface settings, layout and operating rules in `data/settings.json`
+- `ruleEngine.js` – runs the operating rules when a sensor changes
 - `dataLocation.js` – where the data file lives, folder browser, persistence check
 - `feedbackPoller.js` – reads the s88 feedback modules through the Intellibox
 - `public/index.html` – main page: track layout, locomotive control window, settings dialog
@@ -196,7 +196,7 @@ The new state is saved even if the command could not be sent (no address, serial
 - `public/settings.js` – settings dialog and interface status
 - `public/menu.js` – burger menu in the top bar
 - `public/decoders.html`, `public/decoders.js` – decoder test page
-- `public/rules.html`, `public/rules.js` – logic rules editor (separate window)
+- `public/rules.html`, `public/rules.js` – operating rules editor (separate window)
 - `public/trackCatalog.js` – element types, states, addresses and footprints (shared by browser and server)
 - `public/i18n.js` – user interface texts (English, German)
 - `public/styles.css` – styling

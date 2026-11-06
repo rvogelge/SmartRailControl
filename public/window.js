@@ -1,4 +1,4 @@
-// Secondary pages (Logic rules, Blocks, Locomotives, Decoder test).
+// Secondary pages (Operating Rules, Blocks, Locomotives, Decoder test).
 // In a panel of the main window (a frame): the page hides its own header; Esc asks the
 // main window to close the panel. Opened on its own: the ✕ top right (and Esc) closes
 // the window, or goes to the main window when the page is a normal tab.

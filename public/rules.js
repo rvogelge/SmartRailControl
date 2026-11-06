@@ -1,5 +1,5 @@
 /* global TrackCatalog, I18n */
-// Logic rules editor (separate window). Rules are saved on the server and run there:
+// Operating Rules editor (separate window). Rules are saved on the server and run there:
 // WHEN <contact> turns on/off | <turnout/signal> is switched to <state> (by hand)
 // · AND IF <element> is <state> … · THEN <element> → <state> | loco in <block> → n % (after n s) …
 // Rules are grouped by route (Fahrstraße); a route's switch turns all its rules on or off.

@@ -1239,7 +1239,7 @@ const operate = (tile) => {
 
 // Contact tracks are inputs read from the s88 feedback modules. A click is a button
 // press: the contact is on for 2 s, then off again (to test rules without a train).
-// The server keeps the time and runs the logic rules for both changes.
+// The server keeps the time and runs the operating rules for both changes.
 const sensorTimers = new Map();
 const pressSensor = async (tile) => {
   const label = describe(tile);
