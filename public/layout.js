@@ -433,8 +433,10 @@ const blockOfTile = (id) => {
   const blocks = layoutBlocks().filter((b) => b.tiles.includes(id));
   return blocks.find((b) => state.blocks[b.id]) || blocks[0] || null;
 };
+// Occupied blocks are shown in run mode only.
 const occupiedTiles = () => {
   const map = new Map(); // tile id -> block id
+  if (state.mode !== 'run') return map;
   layoutBlocks().forEach((b) => {
     if (state.blocks[b.id]) b.tiles.forEach((id) => map.set(id, b.id));
   });
@@ -460,7 +462,7 @@ const renderBlockLabels = () => {
     group.append(badge);
   });
   layoutBlocks().forEach((block) => {
-    const occupied = state.blocks[block.id];
+    const occupied = state.mode === 'run' && state.blocks[block.id];
     if (!occupied || !occupied.loco) return;
     const tile = TrackCatalog.blockLabelTile(block, state.tiles);
     if (!tile) return;
@@ -505,9 +507,9 @@ const renderTiles = (issues = computeIssues()) => {
         (state.mode === 'edit' && tile.type === 'contact' && s88IsOn(tile));
       g.append(drawElement(tile.type, { rotation: tile.rotation, state: tile.state, active, block: tile.block }));
 
-      // Address badge (not rotated). In run mode only set addresses are shown.
-      const addr = addressText(tile);
-      if (addr && (state.mode === 'edit' || !/^[?/]+$/.test(addr.text))) {
+      // Address badge (not rotated), in edit mode only.
+      const addr = state.mode === 'edit' && addressText(tile);
+      if (addr) {
         const [cx, cy] = cellsOf(tile)[0];
         const bx = (cx - tile.x) * CELL + 4;
         const by = (cy - tile.y) * CELL + 4;
