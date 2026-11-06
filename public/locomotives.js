@@ -50,12 +50,19 @@ const send = async ({ keepalive = false } = {}) => {
   try {
     const data = await api('/api/controllers', {
       method: 'PUT',
-      body: JSON.stringify({ controllers: state.controllers, activeControllerId: state.activeControllerId }),
+      // The selected loco is the throttle's business: the server keeps its own choice.
+      body: JSON.stringify({ controllers: state.controllers }),
       keepalive
     });
-    state.controllers = data.controllers;
-    state.activeControllerId = data.activeControllerId;
-    if (!saveTimer) ui.saveState.textContent = tr('common.saved');
+    // Take the server's version into the same objects: the rows edit these objects, so
+    // replacing them would make later edits in a row go nowhere. Not while another
+    // edit waits to be sent: the reply is older than that edit.
+    if (!saveTimer) {
+      const byId = new Map(state.controllers.map((c) => [c.id, c]));
+      state.controllers = data.controllers.map((next) => Object.assign(byId.get(next.id) || {}, next));
+      state.activeControllerId = data.activeControllerId;
+      ui.saveState.textContent = tr('common.saved');
+    }
     if (message) setStatus(message, 'ok');
     renderWarnings();
   } catch (error) {
