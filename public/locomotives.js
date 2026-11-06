@@ -41,26 +41,43 @@ const newId = () => `c-${Date.now().toString(36)}-${Math.random().toString(36).s
 /* ---------- Saving ---------- */
 
 let saveTimer = null;
+let saveMessage = null;
+const send = async ({ keepalive = false } = {}) => {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  const message = saveMessage;
+  saveMessage = null;
+  try {
+    const data = await api('/api/controllers', {
+      method: 'PUT',
+      body: JSON.stringify({ controllers: state.controllers, activeControllerId: state.activeControllerId }),
+      keepalive
+    });
+    state.controllers = data.controllers;
+    state.activeControllerId = data.activeControllerId;
+    if (!saveTimer) ui.saveState.textContent = tr('common.saved');
+    if (message) setStatus(message, 'ok');
+    renderWarnings();
+  } catch (error) {
+    ui.saveState.textContent = '';
+    setStatus(tr('locos.saveFailed', { msg: error.message }), 'error');
+  }
+};
 const save = (message) => {
   clearTimeout(saveTimer);
+  saveMessage = message || saveMessage;
   ui.saveState.textContent = tr('common.saving');
-  saveTimer = setTimeout(async () => {
-    try {
-      const data = await api('/api/controllers', {
-        method: 'PUT',
-        body: JSON.stringify({ controllers: state.controllers, activeControllerId: state.activeControllerId })
-      });
-      state.controllers = data.controllers;
-      state.activeControllerId = data.activeControllerId;
-      ui.saveState.textContent = tr('common.saved');
-      if (message) setStatus(message, 'ok');
-      renderWarnings();
-    } catch (error) {
-      ui.saveState.textContent = '';
-      setStatus(tr('locos.saveFailed', { msg: error.message }), 'error');
-    }
-  }, 300);
+  saveTimer = setTimeout(send, 300);
 };
+
+// The panel or the page closes: take over a value still being typed and send at once.
+const flushSave = () => {
+  const active = document.activeElement;
+  if (active && active !== document.body && typeof active.blur === 'function') active.blur();
+  if (saveTimer) send({ keepalive: true });
+};
+window.flushPendingSave = flushSave;
+window.addEventListener('pagehide', flushSave);
 
 /* ---------- Rendering ---------- */
 

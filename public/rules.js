@@ -108,27 +108,64 @@ const blockLabel = (id) => {
 /* ---------- Persistence ---------- */
 
 let saveTimer = null;
+const save = async ({ keepalive = false } = {}) => {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  try {
+    const response = await fetch('/api/rules', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rules: state.rules, routes: state.routes }),
+      keepalive
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Save failed.');
+    if (!saveTimer) ui.saveState.textContent = tr('common.saved');
+  } catch (error) {
+    ui.saveState.textContent = tr('common.notSaved');
+    ui.saveState.classList.add('error');
+    setStatus(tr('rules.saveFailed', { msg: error.message }), 'error');
+  }
+};
 const scheduleSave = () => {
   ui.saveState.textContent = tr('common.saving');
   ui.saveState.classList.remove('error');
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    try {
-      const response = await fetch('/api/rules', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rules: state.rules, routes: state.routes })
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Save failed.');
-      ui.saveState.textContent = tr('common.saved');
-    } catch (error) {
-      ui.saveState.textContent = tr('common.notSaved');
-      ui.saveState.classList.add('error');
-      setStatus(tr('rules.saveFailed', { msg: error.message }), 'error');
-    }
-  }, 400);
+  saveTimer = setTimeout(save, 400);
 };
+
+// The panel or the page closes: take over a value still being typed (its change
+// event) and send what is still waiting right away.
+const flushSave = () => {
+  const active = document.activeElement;
+  if (active && active !== document.body && typeof active.blur === 'function') active.blur();
+  if (saveTimer) save({ keepalive: true });
+};
+window.flushPendingSave = flushSave;
+window.addEventListener('pagehide', flushSave);
+
+// Redrawing the rules replaces their fields: never while one of them is being edited
+// (a typed delay or an open list would be lost). The redraw follows when it is left.
+let renderDeferred = false;
+const editingRule = () => {
+  const active = document.activeElement;
+  return Boolean(active && ui.ruleList.contains(active) && active.matches('input, select, textarea'));
+};
+const refreshRules = () => {
+  if (editingRule()) {
+    renderDeferred = true;
+    return;
+  }
+  renderDeferred = false;
+  renderRules();
+};
+ui.ruleList.addEventListener('focusout', () => {
+  if (!renderDeferred) return;
+  // After the change handlers of the field that was left; not while the next one is edited.
+  setTimeout(() => {
+    if (renderDeferred) refreshRules();
+  }, 0);
+});
 
 /* ---------- Rule helpers ---------- */
 
@@ -949,7 +986,7 @@ const loadBlocks = async () => {
     const blocks = data.blocks.map((b) => ({ id: b.id, number: b.number }));
     if (JSON.stringify(blocks) === JSON.stringify(state.blocks)) return;
     state.blocks = blocks;
-    renderRules();
+    refreshRules();
   } catch (_error) {
     // Try again with the next layout reload.
   }
@@ -963,10 +1000,13 @@ const loadLayout = async () => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Load failed.');
     if (JSON.stringify(data.tiles) !== JSON.stringify(state.tiles)) {
+      // Switched turnouts and signals change only their position: the rules stay as drawn.
+      const structure = (tiles) => JSON.stringify(tiles.map(({ state: _position, ...rest }) => rest));
+      const rulesChanged = structure(data.tiles) !== structure(state.tiles);
       state.tiles = data.tiles;
       if (state.filter && !tileById(state.filter)) state.filter = null;
       renderDevices();
-      renderRules();
+      if (rulesChanged) refreshRules();
     }
   } catch (error) {
     setStatus(tr('rules.layoutFailed', { msg: error.message }), 'error');

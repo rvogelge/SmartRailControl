@@ -67,6 +67,13 @@ const toFront = (key) => {
 const close = (key) => {
   const entry = open.get(key);
   if (!entry) return;
+  // Let the page save what is still waiting before its frame goes away.
+  try {
+    const page = entry.frame.contentWindow;
+    if (page && typeof page.flushPendingSave === 'function') page.flushPendingSave();
+  } catch (_error) {
+    // Not reachable: the page saves on its own (pagehide).
+  }
   remember(key, entry.panel);
   entry.resizeObserver.disconnect();
   entry.panel.remove();
