@@ -160,6 +160,43 @@ app.put('/api/controllers', (req, res) => {
 });
 
 // Throttle: driving state of one locomotive.
+// Locomotives page: one locomotive at a time (add, change, remove). Every change is
+// logged, so a setting that seems to land on the wrong locomotive can be traced.
+app.post('/api/controllers', (req, res) => {
+  try {
+    const added = settingsStore.addController(req.body || {});
+    console.log(`[locos] added "${added.name}" (#${added.decoderId}, max ${added.maxSpeed})`);
+    return res.json({ controller: added, ...settingsStore.getControllers() });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+app.patch('/api/controllers/:id', (req, res) => {
+  try {
+    const { before, after } = settingsStore.updateController(req.params.id, req.body || {});
+    const changed = ['name', 'decoderId', 'maxSpeed'].filter((key) => before[key] !== after[key]);
+    if (changed.length > 0) {
+      console.log(`[locos] "${before.name}" (${before.id}): ${changed.map((key) => `${key} ${JSON.stringify(before[key])} → ${JSON.stringify(after[key])}`).join(', ')}`);
+    }
+    if (before.name !== after.name) blocks.renameLoco(before.name, after.name);
+    return res.json({ controller: after, ...settingsStore.getControllers() });
+  } catch (error) {
+    return res.status(error.message === 'Unknown locomotive.' ? 404 : 400).json({ error: error.message });
+  }
+});
+
+app.delete('/api/controllers/:id', (req, res) => {
+  try {
+    const removed = settingsStore.removeController(req.params.id);
+    console.log(`[locos] removed "${removed.name}" (#${removed.decoderId})`);
+    blocks.renameLoco(removed.name, null);
+    return res.json(settingsStore.getControllers());
+  } catch (error) {
+    return res.status(error.message === 'Unknown locomotive.' ? 404 : 400).json({ error: error.message });
+  }
+});
+
 app.put('/api/controllers/:id/state', (req, res) => {
   try {
     return res.json(settingsStore.updateControllerState(req.params.id, req.body || {}));

@@ -40,48 +40,45 @@ const newId = () => `c-${Date.now().toString(36)}-${Math.random().toString(36).s
 
 /* ---------- Saving ---------- */
 
-let saveTimer = null;
-let saveMessage = null;
-const send = async ({ keepalive = false } = {}) => {
-  clearTimeout(saveTimer);
-  saveTimer = null;
-  const message = saveMessage;
-  saveMessage = null;
+// Every change goes to the server for that one locomotive only (by its id), right away.
+// So a second window or an older page can never overwrite the other locomotives.
+let pending = 0;
+const request = async (url, options, message) => {
+  pending += 1;
+  ui.saveState.textContent = tr('common.saving');
   try {
-    const data = await api('/api/controllers', {
-      method: 'PUT',
-      // The selected loco is the throttle's business: the server keeps its own choice.
-      body: JSON.stringify({ controllers: state.controllers }),
-      keepalive
-    });
-    // Take the server's version into the same objects: the rows edit these objects, so
-    // replacing them would make later edits in a row go nowhere. Not while another
-    // edit waits to be sent: the reply is older than that edit.
-    if (!saveTimer) {
-      const byId = new Map(state.controllers.map((c) => [c.id, c]));
-      state.controllers = data.controllers.map((next) => Object.assign(byId.get(next.id) || {}, next));
-      state.activeControllerId = data.activeControllerId;
-      ui.saveState.textContent = tr('common.saved');
-    }
+    const data = await api(url, options);
     if (message) setStatus(message, 'ok');
-    renderWarnings();
+    return data;
   } catch (error) {
-    ui.saveState.textContent = '';
     setStatus(tr('locos.saveFailed', { msg: error.message }), 'error');
+    // The server's list is the truth: show it again.
+    load({ force: true });
+    return null;
+  } finally {
+    pending -= 1;
+    ui.saveState.textContent = pending > 0 ? tr('common.saving') : tr('common.saved');
   }
 };
-const save = (message) => {
-  clearTimeout(saveTimer);
-  saveMessage = message || saveMessage;
-  ui.saveState.textContent = tr('common.saving');
-  saveTimer = setTimeout(send, 300);
+
+// One field of one locomotive (name, decoderId or maxSpeed).
+const saveField = async (c, field, value) => {
+  const data = await request(
+    `/api/controllers/${encodeURIComponent(c.id)}`,
+    { method: 'PATCH', body: JSON.stringify({ [field]: value }) },
+    tr('locos.saved', { name: c.name })
+  );
+  if (data && data.controller) {
+    const mine = state.controllers.find((x) => x.id === data.controller.id);
+    if (mine) Object.assign(mine, data.controller);
+    renderWarnings();
+  }
 };
 
-// The panel or the page closes: take over a value still being typed and send at once.
+// The panel or the page closes: a value still being typed is saved by its change event.
 const flushSave = () => {
   const active = document.activeElement;
   if (active && active !== document.body && typeof active.blur === 'function') active.blur();
-  if (saveTimer) send({ keepalive: true });
 };
 window.flushPendingSave = flushSave;
 window.addEventListener('pagehide', flushSave);
@@ -145,8 +142,9 @@ const renderRow = (c) => {
   name.addEventListener('change', () => {
     const text = name.value.trim() || tr('ctl.newLoco', { n: c.decoderId });
     name.value = text;
+    if (text === c.name) return;
     c.name = text;
-    save(tr('locos.saved', { name: text }));
+    saveField(c, 'name', text);
   });
   name.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') name.blur();
@@ -164,8 +162,8 @@ const renderRow = (c) => {
       label: tr('locos.decoder'),
       onChange: (n) => {
         c.decoderId = n;
-        save(tr('locos.saved', { name: c.name }));
         renderWarnings();
+        saveField(c, 'decoderId', n);
       }
     })
   );
@@ -189,7 +187,7 @@ const renderRow = (c) => {
       onChange: (n) => {
         c.maxSpeed = n;
         of.textContent = percent(n);
-        save(tr('locos.saved', { name: c.name }));
+        saveField(c, 'maxSpeed', n);
       }
     }),
     of
@@ -234,9 +232,10 @@ const removeLoco = (c) => {
   }
   state.confirmRemove = null;
   state.controllers = state.controllers.filter((x) => x.id !== c.id);
-  if (state.activeControllerId === c.id) state.activeControllerId = state.controllers[0].id;
   render();
-  save(tr('ctl.deleted', { name: c.name }));
+  request(`/api/controllers/${encodeURIComponent(c.id)}`, { method: 'DELETE' }, tr('ctl.deleted', { name: c.name })).then((data) => {
+    if (data) take(data);
+  });
 };
 
 ui.add.addEventListener('click', () => {
@@ -251,7 +250,9 @@ ui.add.addEventListener('click', () => {
   };
   state.controllers.push(controller);
   render();
-  save(tr('locos.added', { name: controller.name }));
+  request('/api/controllers', { method: 'POST', body: JSON.stringify(controller) }, tr('locos.added', { name: controller.name })).then((data) => {
+    if (data) take(data);
+  });
   const input = ui.rows.querySelector(`[data-id="${controller.id}"] .loco-name input`);
   if (input) {
     input.focus();
@@ -259,17 +260,45 @@ ui.add.addEventListener('click', () => {
   }
 });
 
-/* ---------- Startup ---------- */
+/* ---------- Loading ---------- */
 
-const init = async () => {
+// Takes the server's list. The objects of rows on screen are kept (their fields edit
+// them); the rows are drawn again only when locomotives or values changed.
+const take = (data) => {
+  const byId = new Map(state.controllers.map((c) => [c.id, c]));
+  const shown = JSON.stringify(state.controllers.map(({ id, name, decoderId, maxSpeed }) => [id, name, decoderId, maxSpeed]));
+  state.controllers = data.controllers.map((next) => Object.assign(byId.get(next.id) || {}, next));
+  state.activeControllerId = data.activeControllerId;
+  const now = JSON.stringify(state.controllers.map(({ id, name, decoderId, maxSpeed }) => [id, name, decoderId, maxSpeed]));
+  return now !== shown;
+};
+
+// Changes from other windows or browsers show up here too, but never while a field is
+// being edited or a change is on its way.
+const editing = () => {
+  const active = document.activeElement;
+  return Boolean(active && ui.rows.contains(active) && active.matches('input'));
+};
+const load = async ({ force = false } = {}) => {
+  if (!force && (pending > 0 || editing() || state.confirmRemove)) return;
   try {
     const data = await api('/api/controllers');
-    state.controllers = data.controllers;
-    state.activeControllerId = data.activeControllerId;
-    render();
+    if (!force && (pending > 0 || editing())) return;
+    if (take(data) || force) render();
   } catch (error) {
     setStatus(tr('ctl.loadFailed', { msg: error.message }), 'error');
   }
+};
+
+/* ---------- Startup ---------- */
+
+const REFRESH_MS = 3000;
+const init = async () => {
+  await load({ force: true });
+  setInterval(() => {
+    if (document.visibilityState === 'visible') load();
+  }, REFRESH_MS);
+  window.addEventListener('focus', () => load());
 };
 
 window.addEventListener('languagechange', render);

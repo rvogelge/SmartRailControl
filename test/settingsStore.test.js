@@ -265,3 +265,32 @@ test('routes group rules; a rule of an unknown or deleted route keeps working wi
   store.setRoutes([]);
   assert.deepEqual(store.getRules().map((r) => r.route), [null, null, null]);
 });
+
+test('locomotives are changed one at a time: other locomotives stay as they are', () => {
+  const store = new SettingsStore(tmpFile());
+  store.setControllers({
+    controllers: [
+      { id: 'v200', name: 'V200', decoderId: 242, maxSpeed: 126, speed: 30 },
+      { id: 'br86', name: 'BR 86', decoderId: 80, maxSpeed: 90 }
+    ]
+  });
+  const { before, after } = store.updateController('v200', { maxSpeed: 60, speed: 99, id: 'br86' });
+  assert.equal(before.maxSpeed, 126);
+  assert.equal(after.maxSpeed, 60);
+  assert.equal(after.id, 'v200'); // the id cannot be changed
+  assert.equal(after.speed, 30); // driving state is not touched
+  const [v200, br86] = store.getControllers().controllers;
+  assert.equal(v200.maxSpeed, 60);
+  assert.equal(br86.maxSpeed, 90);
+  assert.throws(() => store.updateController('nope', { maxSpeed: 1 }), /Unknown locomotive/);
+
+  const added = store.addController({ id: 'ib', name: 'Werkslok', decoderId: 40, maxSpeed: 50 });
+  assert.equal(added.maxSpeed, 50);
+  assert.equal(store.getControllers().controllers.length, 3);
+  assert.notEqual(store.addController({ id: 'ib', decoderId: 41 }).id, 'ib'); // ids stay unique
+
+  store.setActiveController('br86');
+  store.removeController('br86');
+  assert.equal(store.getControllers().activeControllerId, 'v200');
+  assert.equal(store.getControllers().controllers.find((c) => c.id === 'v200').maxSpeed, 60);
+});

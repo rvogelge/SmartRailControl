@@ -406,6 +406,43 @@ class SettingsStore {
     return { ...next, functions: [...next.functions] };
   }
 
+  // Locomotives page: name, decoder address and max speed of one locomotive. Only the
+  // given fields change, so a page with an older list cannot touch other locomotives.
+  updateController(id, changes = {}) {
+    const index = this.data.controllers.findIndex((c) => c.id === id);
+    if (index === -1) throw new Error('Unknown locomotive.');
+    const current = this.data.controllers[index];
+    const picked = ['name', 'decoderId', 'maxSpeed'].reduce((acc, key) => {
+      if (changes[key] !== undefined) acc[key] = changes[key];
+      return acc;
+    }, {});
+    const next = sanitizeController({ ...current, ...picked });
+    this.data.controllers[index] = next;
+    this.save();
+    return { before: { ...current, functions: [...current.functions] }, after: { ...next, functions: [...next.functions] } };
+  }
+
+  addController(input = {}) {
+    if (this.data.controllers.length >= MAX_CONTROLLERS) {
+      throw new Error(`At most ${MAX_CONTROLLERS} controllers are supported.`);
+    }
+    const next = sanitizeController({ name: input.name, decoderId: input.decoderId, maxSpeed: input.maxSpeed, id: input.id });
+    if (this.data.controllers.some((c) => c.id === next.id)) next.id = crypto.randomUUID();
+    this.data.controllers.push(next);
+    this.save();
+    return { ...next, functions: [...next.functions] };
+  }
+
+  removeController(id) {
+    const removed = this.data.controllers.find((c) => c.id === id);
+    if (!removed) throw new Error('Unknown locomotive.');
+    if (this.data.controllers.length <= 1) throw new Error('At least one controller is required.');
+    this.data.controllers = this.data.controllers.filter((c) => c.id !== id);
+    if (this.data.activeControllerId === id) this.data.activeControllerId = this.data.controllers[0].id;
+    this.save();
+    return { ...removed, functions: [...removed.functions] };
+  }
+
   setActiveController(id) {
     if (!this.data.controllers.some((c) => c.id === id)) throw new Error('Unknown locomotive.');
     this.data.activeControllerId = id;
