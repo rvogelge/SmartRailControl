@@ -33,6 +33,8 @@ const MAX_S88_MODULES = 31;
 const REPLY_TIMEOUT_MS = 1000;
 // settle(): the line counts as quiet once nothing arrived for this long.
 const SETTLE_QUIET_MS = 500;
+// A port that closed by itself (USB adapter gone) is opened again this often.
+const RECONNECT_MS = 2000;
 const SETTLE_MAX_MS = 5000;
 const P50X_STATUS_OK = 0x00;
 // One-byte replies of the Intellibox to P50X commands.
@@ -117,6 +119,8 @@ class SerialService {
     this.pendingReplies = []; // FIFO: the Intellibox answers commands in order
     this.unexpectedBytes = 0; // bytes no command waited for: replies may be out of step
     this.lastRxAt = 0;
+    this.reconnectTimer = null;
+    this.reconnectAttempts = 0;
     if (this.disabled) {
       console.log('Serial interface disabled via SMARTRAILCONTROL_SERIAL_DISABLED. Running in layout-only mode.');
       return;
@@ -153,17 +157,24 @@ class SerialService {
     return this.getStatus();
   }
 
+  // Opens the port. When it closes by itself (USB adapter gone, e.g. after a power dip)
+  // or cannot be opened, it is tried again every RECONNECT_MS until it works.
   connect() {
     if (this.disabled) {
       return;
     }
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
 
-    if (this.connection && this.connection.isOpen) {
-      this.connection.close();
+    const previous = this.connection;
+    this.connection = null; // its close event no longer counts as "lost"
+    if (previous && previous.isOpen) {
+      previous.close();
     }
 
+    let conn;
     try {
-      this.connection = new SerialPort({
+      conn = new SerialPort({
         path: this.portName,
         baudRate: this.baudRate,
         dataBits: 8,
@@ -171,30 +182,56 @@ class SerialService {
         parity: 'none',
         rtscts: this.hardwareHandshake
       });
-
-      this.connection.on('open', () => {
-        this.connected = true;
-        this.lastRxAt = Date.now(); // settle() waits a quiet period from here
-        console.log(`Connected to serial interface on ${this.portName} @ ${this.baudRate} baud`);
-      });
-
-      this.connection.on('data', (chunk) => this.handleData(chunk));
-
-      this.connection.on('close', () => {
-        this.connected = false;
-        this.failPendingReplies('Serial port closed.');
-        console.log(`Serial interface closed on ${this.portName}`);
-      });
-
-      this.connection.on('error', (error) => {
-        this.connected = false;
-        console.error(`[Intellibox ERROR] ${this.portName}: ${error.message}`);
-      });
     } catch (error) {
       console.error(`Unable to open serial port ${this.portName}: ${error.message}`);
-      this.connection = null;
       this.connected = false;
+      this.scheduleReconnect();
+      return;
     }
+    this.connection = conn;
+
+    conn.on('open', () => {
+      if (this.connection !== conn) return;
+      this.connected = true;
+      this.lastRxAt = Date.now(); // settle() waits a quiet period from here
+      if (this.reconnectAttempts > 0) {
+        console.log(`Reconnected to serial interface on ${this.portName} @ ${this.baudRate} baud after ${this.reconnectAttempts} attempt(s)`);
+      } else {
+        console.log(`Connected to serial interface on ${this.portName} @ ${this.baudRate} baud`);
+      }
+      this.reconnectAttempts = 0;
+    });
+
+    conn.on('data', (chunk) => {
+      if (this.connection === conn) this.handleData(chunk);
+    });
+
+    conn.on('close', () => {
+      if (this.connection !== conn) return; // replaced on purpose (new settings)
+      this.connected = false;
+      this.failPendingReplies('Serial port closed.');
+      console.log(`Serial interface closed on ${this.portName}`);
+      this.scheduleReconnect();
+    });
+
+    conn.on('error', (error) => {
+      if (this.connection !== conn) return;
+      this.connected = false;
+      if (this.reconnectAttempts === 0) console.error(`[Intellibox ERROR] ${this.portName}: ${error.message}`);
+      // Opening failed (no 'close' follows): try again later.
+      if (!conn.isOpen) this.scheduleReconnect();
+    });
+  }
+
+  scheduleReconnect() {
+    if (this.disabled || this.reconnectTimer) return;
+    if (this.reconnectAttempts === 0) console.log(`Serial port ${this.portName} lost: trying to reconnect every ${RECONNECT_MS / 1000} s`);
+    this.reconnectAttempts += 1;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, RECONNECT_MS);
+    if (this.reconnectTimer.unref) this.reconnectTimer.unref();
   }
 
   isOpen() {
