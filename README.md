@@ -169,7 +169,7 @@ Environment variables:
 In run mode, switching a turnout, three-way turnout, crossover switch or signal, or triggering an uncoupler, sends the command to the decoder address(es) stored for that element. The browser only tells the server which element changed; the server looks up the addresses in the saved layout.
 
 - Protocol: P50X `XTrnt` — `0x58 0x90 <address low> <flags | address high>`, bit 7 = green, bit 6 = output on. With `INTELLIBOX_PROTOCOL=P50` the legacy commands `33`/`34` + address and `32` (off) are used.
-- Every output is switched on and, after `ACCESSORY_SWITCH_TIME_MS` (default 250 ms), off again — like pressing a key on the keyboard. Commands are sent one after another.
+- Every output is switched on and, after `ACCESSORY_SWITCH_TIME_MS` (default 500 ms), off again — like pressing a key on the keyboard. Commands are sent one after another.
 - Green = straight / go, red = diverging / stop:
 
 | Element | State → outputs |

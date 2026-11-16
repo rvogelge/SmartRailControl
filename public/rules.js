@@ -649,6 +649,9 @@ const logText = (e) => {
     if (!e.sent) return tr('log.locoNotSet', { block, reason: e.reason });
     return tr(e.emergency ? 'log.locoEmergency' : 'log.loco', { loco: e.loco, block, speed: e.speed });
   }
+  if (e.kind === 'blockConflict') {
+    return tr(e.sent ? 'log.blockConflict' : 'log.blockConflictNotSent', { loco: e.loco, block: blockLabel(e.block), occupant: e.occupant, reason: e.reason });
+  }
   if (e.kind === 'action') {
     const what = `${labelOf(e.type)} → ${stateLabel(e.type, e.state)}`;
     return e.sent ? what : tr('log.notSent', { what, reason: e.reason });
@@ -668,7 +671,7 @@ const renderLog = () => {
         'li',
         { className: e.error ? 'error' : '' },
         el('time', { text: new Date(e.time).toLocaleTimeString() }),
-        el('strong', { text: e.name }),
+        el('strong', { text: e.kind === 'blockConflict' ? tr('menu.blocks') : e.name }),
         el('span', { text: logText(e) })
       )
     )

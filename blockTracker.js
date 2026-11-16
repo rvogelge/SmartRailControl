@@ -14,6 +14,9 @@
 //   turnouts right now. A single block with an unknown train counts too (no speed to
 //   check). If that leaves no single block, none is freed and the new block is occupied
 //   by an unknown train.
+// - A train that runs into a block another known locomotive occupies (e.g. a turnout did
+//   not switch) changes nothing: the waiting locomotive keeps its block, the arriving one
+//   stays in the block it came from, and the result reports the conflict.
 //
 // Blocks can also be set and freed by hand. Occupancy is saved with the settings.
 
@@ -84,8 +87,9 @@ class BlockTracker {
     return { from: null, ambiguous: (moving.length ? moving : candidates).map((b) => b.id) };
   }
 
-  // A contact track switched on. Returns { block, loco, freed: [ids], ambiguous: [ids] }
-  // or null when the contact does not start a block.
+  // A contact track switched on. Returns { block, loco, freed: [ids], ambiguous: [ids] },
+  // plus conflict: { loco (arriving), from (its block) } when the block is occupied by
+  // another known locomotive; null when the contact does not start a block.
   contactOn(tileId) {
     const blocks = this.blocks();
     const block = blocks.find((b) => b.id === tileId);
@@ -93,7 +97,11 @@ class BlockTracker {
 
     const { from, ambiguous } = this.sourceOf(block, blocks);
     const current = this.occupied.get(block.id);
-    const loco = (from && this.occupied.get(from.id).loco) || (current && current.loco) || null;
+    const arriving = from && this.occupied.get(from.id).loco;
+    if (arriving && current && current.loco && current.loco !== arriving) {
+      return { block: block.id, loco: current.loco, freed: [], ambiguous, conflict: { loco: arriving, from: from.id } };
+    }
+    const loco = arriving || (current && current.loco) || null;
 
     if (from) this.occupied.delete(from.id);
     // The locomotive is now here and nowhere else.

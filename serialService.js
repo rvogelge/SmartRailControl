@@ -54,7 +54,8 @@ const P50X_REPLIES = {
 };
 
 // Solenoid outputs are switched on and off again after this time (like a keyboard press).
-const DEFAULT_SWITCH_TIME_MS = 250;
+// 500 ms: with several trains running, shorter pulses did not always move a turnout.
+const DEFAULT_SWITCH_TIME_MS = 500;
 const P50X_MAX_ACCESSORY = 2047; // 11-bit address field
 const P50_MAX_ACCESSORY = 256;
 

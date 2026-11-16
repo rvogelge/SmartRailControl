@@ -166,6 +166,22 @@ test('blocks reachable over the turnouts as set', () => {
   assert.deepEqual(next(undefined).a, ['d']); // no state saved: the first state (straight)
 });
 
+test('a train running into a block occupied by another locomotive changes nothing', () => {
+  const speeds = { 'BR 218': 40, 'V 100': 0 };
+  const tracker = new BlockTracker({ getTiles: line, getLocoSpeed: (name) => speeds[name] ?? null });
+  tracker.set('c1', { occupied: true, loco: 'BR 218' });
+  tracker.set('c2', { occupied: true, loco: 'V 100' }); // waiting
+  assert.deepEqual(tracker.contactOn('c2'), { block: 'c2', loco: 'V 100', freed: [], ambiguous: [], conflict: { loco: 'BR 218', from: 'c1' } });
+  assert.deepEqual(tracker.getLive(), { c1: { loco: 'BR 218' }, c2: { loco: 'V 100' } });
+
+  // A block with an unknown train is taken over by the arriving locomotive, as before.
+  const unknown = new BlockTracker({ getTiles: line, getLocoSpeed: () => 40 });
+  unknown.set('c1', { occupied: true, loco: 'BR 218' });
+  unknown.set('c2', { occupied: true, loco: null });
+  assert.equal(unknown.contactOn('c2').conflict, undefined);
+  assert.deepEqual(unknown.getLive(), { c2: { loco: 'BR 218' } });
+});
+
 test('a stopped locomotive is not taken along; an unknown train is', () => {
   const stopped = new BlockTracker({ getTiles: line, getLocoSpeed: () => 0 });
   stopped.set('c1', { occupied: true, loco: 'BR 218' });

@@ -318,16 +318,42 @@ const blocks = new BlockTracker({
   getLocoSpeed: locoSpeed
 });
 
+// Emergency stop of a locomotive by name (direction and light stay).
+const emergencyStopLoco = (name) => {
+  const controller = settingsStore.getControllers().controllers.find((c) => c.name === name);
+  if (!controller) return { sent: false, error: `${name} is not in the locomotive list` };
+  const result = serialService.sendLocomotiveCommand({
+    decoderId: controller.decoderId,
+    speed: 0,
+    direction: controller.direction,
+    stop: false,
+    emergency: true,
+    light: controller.light
+  });
+  locoSpeeds.set(controller.decoderId, 0);
+  settingsStore.updateControllerState(controller.id, { speed: 0 });
+  return { sent: Boolean(result.success), error: result.error };
+};
+
 // A contact track switched on (s88 or pressed by hand): occupy its block, if it starts one.
+// A train running into a block another locomotive occupies is stopped at once.
+// Returns the BlockTracker result (null: no block start).
 const blockContactOn = (tileId) => {
   const result = blocks.contactOn(tileId);
-  if (result) {
+  if (result && result.conflict) {
+    const { loco: arriving } = result.conflict;
+    const stop = emergencyStopLoco(arriving);
+    const text = `${arriving} ran into block ${result.block}, occupied by ${result.loco}: ${stop.sent ? 'emergency stop' : `emergency stop not sent (${stop.error})`}`;
+    console.warn(`[blocks] ${text}`);
+    ruleEngine.addLog({ name: 'Blocks', kind: 'blockConflict', block: result.block, loco: arriving, occupant: result.loco, sent: stop.sent, reason: stop.error, text, error: true });
+  } else if (result) {
     const freed = result.freed.length ? `, freed ${result.freed.length} block(s) behind` : '';
     console.log(`[blocks] block ${result.block} occupied${result.loco ? ` by ${result.loco}` : ''}${freed}`);
     if (result.ambiguous.length) {
       console.log(`[blocks] ${result.ambiguous.length} occupied block(s) lead into block ${result.block}, but not exactly one has a running locomotive: none freed`);
     }
   }
+  return result;
 };
 
 // Run mode: occupy a block (optionally with a loco name) or free it, by hand.
@@ -429,7 +455,12 @@ const feedback = new FeedbackPoller({
       if (initial) {
         ruleEngine.syncSensor(tile.id, on);
       } else {
-        if (on) blockContactOn(tile.id);
+        const block = on ? blockContactOn(tile.id) : null;
+        if (block && block.conflict) {
+          // The rules of this contact would act on the waiting locomotive: do not run them.
+          ruleEngine.syncSensor(tile.id, on);
+          return;
+        }
         const { fired } = ruleEngine.setSensor(tile.id, on);
         if (fired.length) console.log(`[rules] contact ${contact} ${on ? 'on' : 'off'}: ${fired.length} rule(s) fired`);
       }
