@@ -131,14 +131,39 @@ test('merging blocks: only the block of the running locomotive is freed, whateve
   assert.deepEqual(tracker.getLive(), { a: { loco: 'BR 218' }, d: { loco: 'V 100' } });
 });
 
-test('merging blocks: no single running locomotive, nothing is freed', () => {
+test('merging blocks: no single running locomotive with its route set, nothing is freed', () => {
   const speeds = { 'BR 218': 30, 'V 100': 40 };
-  const tracker = new BlockTracker({ getTiles: () => merge(), getLocoSpeed: (name) => speeds[name] ?? null });
+  // A three-way turnout set to its third route: neither a nor b leads into d right now.
+  const tiles = merge().map((t) => (t.id === 't' ? { ...t, type: 'turnout-3way', state: 'left' } : t));
+  const tracker = new BlockTracker({ getTiles: () => tiles, getLocoSpeed: (name) => speeds[name] ?? null });
   tracker.set('a', { occupied: true, loco: 'BR 218' });
   tracker.set('b', { occupied: true, loco: 'V 100' });
   const result = tracker.contactOn('d');
   assert.deepEqual(result, { block: 'd', loco: null, freed: [], ambiguous: ['a', 'b'] });
   assert.deepEqual(tracker.getLive(), { a: { loco: 'BR 218' }, b: { loco: 'V 100' }, d: { loco: null } });
+});
+
+test('merging blocks: two running locomotives, the turnout tells which one came', () => {
+  const speeds = { 'BR 218': 30, 'V 100': 40 };
+  // Straight route: from a.
+  const straight = new BlockTracker({ getTiles: () => merge('straight'), getLocoSpeed: (name) => speeds[name] ?? null });
+  straight.set('a', { occupied: true, loco: 'BR 218' });
+  straight.set('b', { occupied: true, loco: 'V 100' });
+  assert.deepEqual(straight.contactOn('d'), { block: 'd', loco: 'BR 218', freed: ['a'], ambiguous: [] });
+  assert.deepEqual(straight.getLive(), { b: { loco: 'V 100' }, d: { loco: 'BR 218' } });
+
+  // Diverging route: from b.
+  const diverging = new BlockTracker({ getTiles: () => merge('diverging'), getLocoSpeed: (name) => speeds[name] ?? null });
+  diverging.set('a', { occupied: true, loco: 'BR 218' });
+  diverging.set('b', { occupied: true, loco: 'V 100' });
+  assert.deepEqual(diverging.contactOn('d'), { block: 'd', loco: 'V 100', freed: ['b'], ambiguous: [] });
+});
+
+test('blocks reachable over the turnouts as set', () => {
+  const next = (state) => Object.fromEntries(TrackCatalog.findBlocks(merge(state), { asSet: true }).map((x) => [x.id, x.next]));
+  assert.deepEqual(next('straight'), { d: [], a: ['d'], b: [] });
+  assert.deepEqual(next('diverging'), { d: [], a: [], b: ['d'] });
+  assert.deepEqual(next(undefined).a, ['d']); // no state saved: the first state (straight)
 });
 
 test('a stopped locomotive is not taken along; an unknown train is', () => {

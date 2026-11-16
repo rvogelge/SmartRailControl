@@ -9,10 +9,11 @@
 // - A locomotive is in one block at most: assigning it to another block by hand is
 //   refused until its block is freed.
 // - Where the train came from: of the occupied blocks leading into the contact (over any
-//   turnout route), the one whose locomotive is running (speed > 0); turnout positions do
-//   not matter. A single block with an unknown train counts too (no speed to check). If
-//   that leaves no single block, none is freed and the new block is occupied by an
-//   unknown train.
+//   turnout route), the one whose locomotive is running (speed > 0). If several running
+//   locomotives could have come, the one whose route into the contact is set by the
+//   turnouts right now. A single block with an unknown train counts too (no speed to
+//   check). If that leaves no single block, none is freed and the new block is occupied
+//   by an unknown train.
 //
 // Blocks can also be set and freed by hand. Occupancy is saved with the settings.
 
@@ -73,6 +74,12 @@ class BlockTracker {
     const locoOf = (b) => this.occupied.get(b.id).loco;
     const moving = candidates.filter((b) => locoOf(b) && Number(this.getLocoSpeed(locoOf(b))) > 0);
     if (moving.length === 1) return { from: moving[0], ambiguous: [] };
+    if (moving.length > 1) {
+      // Several trains on the move: only one of them has the turnouts set into this block.
+      const setNext = new Map(TrackCatalog.findBlocks(this.getTiles(), { asSet: true }).map((b) => [b.id, b.next]));
+      const routed = moving.filter((b) => (setNext.get(b.id) || []).includes(block.id));
+      if (routed.length === 1) return { from: routed[0], ambiguous: [] };
+    }
     if (moving.length === 0 && candidates.length === 1 && !locoOf(candidates[0])) return { from: candidates[0], ambiguous: [] };
     return { from: null, ambiguous: (moving.length ? moving : candidates).map((b) => b.id) };
   }

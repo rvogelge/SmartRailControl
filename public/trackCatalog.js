@@ -20,6 +20,7 @@
   // lists the squares (at rotation 0) its track actually uses. Default: 1×1.
   // links: which track ends are joined inside the element (at rotation 0), see TRACK_ENDS.
   // A train entering at one end may leave at any end it is linked to (all turnout routes).
+  // routes (turnouts): per state the links (indices into `links`) that are set.
   const TYPES = {
     straight: { label: 'Straight', links: [['W', 'E']] },
     diagonal: { label: 'Diagonal', links: [['SW', 'NE']] },
@@ -34,6 +35,7 @@
     'turnout-left': {
       label: 'Turnout left',
       links: [['W', 'E'], ['W', 'NE']],
+      routes: { straight: [0], diverging: [1] },
       stateLabels: { straight: 'straight', diverging: 'diverging' },
       states: ['straight', 'diverging'],
       addresses: ['Turnout address'],
@@ -42,6 +44,7 @@
     'turnout-right': {
       label: 'Turnout right',
       links: [['W', 'E'], ['W', 'SE']],
+      routes: { straight: [0], diverging: [1] },
       stateLabels: { straight: 'straight', diverging: 'diverging' },
       states: ['straight', 'diverging'],
       addresses: ['Turnout address'],
@@ -50,6 +53,7 @@
     'turnout-3way': {
       label: 'Three-way turnout',
       links: [['W', 'E'], ['W', 'NE'], ['W', 'SE']],
+      routes: { straight: [0], left: [1], right: [2] },
       stateLabels: { straight: 'straight', left: 'left', right: 'right' },
       states: ['straight', 'left', 'right'],
       addresses: ['Drive 1 (left)', 'Drive 2 (right)'],
@@ -63,6 +67,7 @@
     'double-slip': {
       label: 'Crossover switch',
       links: [['W', 'E'], ['SW', 'NE'], ['W', 'NE'], ['SW', 'E']],
+      routes: { straight: [0, 1], turn: [2, 3] },
       stateLabels: { straight: 'straight', turn: 'turning' },
       states: ['straight', 'turn'],
       // Only two states, so both drives are wired to one decoder output.
@@ -189,6 +194,13 @@
     return { name, x, y, dir, key: `${x},${y},${dir}` };
   };
   const linksOf = (type) => (TYPES[type] && TYPES[type].links) || [];
+  // Is link `index` of a tile part of its route as set now? Track without routes: always.
+  const routeIsSet = (tile, index) => {
+    const type = TYPES[tile.type];
+    if (!type || !type.routes) return true;
+    const state = type.routes[tile.state] ? tile.state : type.states[0];
+    return type.routes[state].includes(index);
+  };
 
   // Block start: a contact track with `block: 'right' | 'left'` (the arrow in its symbol,
   // at rotation 0). The block covers the contact and the track behind it in arrow
@@ -202,7 +214,8 @@
   // Every block of the layout: [{ id (= start contact id), start, tiles: [ids in track
   // order], next: [ids of the block-start contacts a train can reach from it, also over
   // turnouts and track outside blocks] }]. The block itself covers all turnout routes.
-  const findBlocks = (tiles) => {
+  // asSet: `next` only over the turnout routes as they are set now (tile.state).
+  const findBlocks = (tiles, { asSet = false } = {}) => {
     const ends = new Map(); // "x,y,dir" -> [{ tile, name }]
     tiles.forEach((tile) => {
       new Set(linksOf(tile.type).flat().filter(Boolean)).forEach((name) => {
@@ -232,7 +245,8 @@
           visited.add(`${tile.id}:${name}`);
           const stillIn = inBlock && !isTurnout(tile.type);
           if (stillIn) onTile(tile);
-          linksOf(tile.type).forEach(([a, b]) => {
+          linksOf(tile.type).forEach(([a, b], index) => {
+            if (asSet && !routeIsSet(tile, index)) return;
             const other = a === name ? b : b === name ? a : undefined;
             if (other) queue.push([tileEnd(tile, other), stillIn]);
           });

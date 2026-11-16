@@ -53,6 +53,8 @@ class RuleEngine {
     this.logSeq += 1;
     this.log.unshift({ seq: this.logSeq, time: new Date().toISOString(), ...entry });
     this.log.length = Math.min(this.log.length, MAX_LOG);
+    // Failed actions also go to the server log, where they can be looked up later.
+    if (entry.error) console.warn(`[rules] ${entry.name}: ${entry.text}`);
   }
 
   // Returns { changed, fired: [rule ids] } and a promise for the running actions
